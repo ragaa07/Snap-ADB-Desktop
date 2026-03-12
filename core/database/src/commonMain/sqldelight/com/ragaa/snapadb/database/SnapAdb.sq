@@ -44,6 +44,24 @@ CREATE TABLE logcat_filter (
     search_text TEXT
 );
 
+getAllFilters:
+SELECT * FROM logcat_filter;
+
+getFilterById:
+SELECT * FROM logcat_filter WHERE id = ?;
+
+insertFilter:
+INSERT INTO logcat_filter (name, tag_pattern, min_level, package_name, search_text)
+VALUES (?, ?, ?, ?, ?);
+
+updateFilter:
+UPDATE logcat_filter
+SET name = ?, tag_pattern = ?, min_level = ?, package_name = ?, search_text = ?
+WHERE id = ?;
+
+deleteFilter:
+DELETE FROM logcat_filter WHERE id = ?;
+
 CREATE TABLE device_nickname (
     serial TEXT NOT NULL PRIMARY KEY,
     nickname TEXT NOT NULL

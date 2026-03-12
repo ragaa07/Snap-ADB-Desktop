@@ -4,7 +4,7 @@ import com.ragaa.snapadb.core.adb.model.MemoryInfo
 
 object MemoryParser {
 
-    private val MEMINFO_PATTERN = Regex("^(\\S+):\\s+(\\d+)\\s*kB$")
+    private val MEMINFO_PATTERN = Regex("^(\\S+):\\s+(\\d+)\\s*kB$", RegexOption.IGNORE_CASE)
 
     /**
      * Parses `adb shell cat /proc/meminfo` output.

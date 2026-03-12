@@ -2,6 +2,7 @@ package com.ragaa.snapadb.feature.multidevice
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ragaa.snapadb.common.ActionResult
 import com.ragaa.snapadb.common.DispatcherProvider
 import com.ragaa.snapadb.core.adb.AdbClient
 import com.ragaa.snapadb.core.adb.AdbDeviceMonitor
@@ -110,8 +111,3 @@ data class DeviceWithNickname(
     val displayName: String get() = nickname ?: device.model.ifEmpty { device.serial }
 }
 
-sealed class ActionResult {
-    data object Loading : ActionResult()
-    data class Success(val message: String) : ActionResult()
-    data class Error(val message: String) : ActionResult()
-}

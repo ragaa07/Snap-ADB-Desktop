@@ -1,5 +1,6 @@
 package com.ragaa.snapadb.feature.multidevice
 
+import com.ragaa.snapadb.common.ActionResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement

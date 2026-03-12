@@ -10,6 +10,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class AdbDeviceMonitor(
@@ -27,7 +28,6 @@ class AdbDeviceMonitor(
     val error: StateFlow<Exception?> = _error.asStateFlow()
 
     private var monitorScope: CoroutineScope? = null
-    private var pollingJob: Job? = null
     private var hasAutoSelected = false
 
     fun selectDevice(device: AdbDevice?) {
@@ -35,10 +35,10 @@ class AdbDeviceMonitor(
     }
 
     fun start() {
-        if (pollingJob?.isActive == true) return
+        if (monitorScope != null) return
         val scope = CoroutineScope(SupervisorJob() + dispatchers.io)
         monitorScope = scope
-        pollingJob = scope.launch {
+        scope.launch {
             while (true) {
                 adbClient.execute(ListDevices())
                     .onSuccess { deviceList ->
@@ -55,23 +55,22 @@ class AdbDeviceMonitor(
     }
 
     fun stop() {
-        pollingJob?.cancel()
-        pollingJob = null
         monitorScope?.let { (it.coroutineContext[Job])?.cancel() }
         monitorScope = null
     }
 
     private fun reconcileSelection(deviceList: List<AdbDevice>) {
-        val current = _selectedDevice.value
-
-        if (current != null && deviceList.none { it.serial == current.serial }) {
-            _selectedDevice.value = null
-        }
-
-        // Only auto-select on first discovery, not after user clears selection
-        if (!hasAutoSelected && _selectedDevice.value == null && deviceList.isNotEmpty()) {
-            _selectedDevice.value = deviceList.first()
-            hasAutoSelected = true
+        _selectedDevice.update { current ->
+            when {
+                // Selected device disconnected — clear selection
+                current != null && deviceList.none { it.serial == current.serial } -> null
+                // Auto-select first device on first discovery
+                !hasAutoSelected && current == null && deviceList.isNotEmpty() -> {
+                    hasAutoSelected = true
+                    deviceList.first()
+                }
+                else -> current
+            }
         }
     }
 }

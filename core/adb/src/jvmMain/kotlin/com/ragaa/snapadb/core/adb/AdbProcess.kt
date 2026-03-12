@@ -5,6 +5,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -23,7 +24,7 @@ class AdbProcess(private val dispatchers: DispatcherProvider) {
                     val stdout = async { process.inputStream.bufferedReader().use(BufferedReader::readText) }
                     val stderr = async { process.errorStream.bufferedReader().use(BufferedReader::readText) }
 
-                    val exitCode = process.waitFor()
+                    val exitCode = process.onExit().await().exitValue()
                     ProcessResult(
                         exitCode = exitCode,
                         stdout = stdout.await(),

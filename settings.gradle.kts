@@ -2,6 +2,7 @@ rootProject.name = "SnapADB"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
+    includeBuild("build-logic")
     repositories {
         google {
             mavenContent {
@@ -12,6 +13,7 @@ pluginManagement {
         }
         mavenCentral()
         gradlePluginPortal()
+        maven("https://www.jetbrains.com/intellij-repository/releases")
     }
 }
 
@@ -33,3 +35,21 @@ plugins {
 }
 
 include(":composeApp")
+
+include(":core:common")
+include(":core:adb")
+include(":core:database")
+include(":core:navigation")
+include(":core:theme")
+include(":core:ui")
+
+include(":feature:dashboard")
+include(":feature:appmanager")
+include(":feature:fileexplorer")
+include(":feature:shell")
+include(":feature:screenmirror")
+include(":feature:devicecontrols")
+include(":feature:performance")
+include(":feature:multidevice")
+include(":feature:deeplink")
+include(":feature:notification")

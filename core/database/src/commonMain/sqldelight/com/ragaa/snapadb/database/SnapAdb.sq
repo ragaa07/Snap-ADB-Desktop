@@ -43,3 +43,20 @@ CREATE TABLE logcat_filter (
     package_name TEXT,
     search_text TEXT
 );
+
+CREATE TABLE device_nickname (
+    serial TEXT NOT NULL PRIMARY KEY,
+    nickname TEXT NOT NULL
+);
+
+getAllNicknames:
+SELECT * FROM device_nickname;
+
+getNickname:
+SELECT nickname FROM device_nickname WHERE serial = ?;
+
+upsertNickname:
+INSERT OR REPLACE INTO device_nickname (serial, nickname) VALUES (?, ?);
+
+deleteNickname:
+DELETE FROM device_nickname WHERE serial = ?;

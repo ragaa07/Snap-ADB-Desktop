@@ -1,0 +1,45 @@
+CREATE TABLE settings (
+    key TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+getValue:
+SELECT value FROM settings WHERE key = ?;
+
+setValue:
+INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?);
+
+deleteValue:
+DELETE FROM settings WHERE key = ?;
+
+CREATE TABLE deep_link (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    uri TEXT NOT NULL,
+    label TEXT,
+    target_package TEXT,
+    is_favorite INTEGER NOT NULL DEFAULT 0,
+    last_used INTEGER,
+    created_at INTEGER NOT NULL
+);
+
+CREATE TABLE favorite_app (
+    package_name TEXT NOT NULL PRIMARY KEY,
+    label TEXT,
+    created_at INTEGER NOT NULL
+);
+
+CREATE TABLE notification_template (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
+CREATE TABLE logcat_filter (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    tag_pattern TEXT,
+    min_level TEXT,
+    package_name TEXT,
+    search_text TEXT
+);

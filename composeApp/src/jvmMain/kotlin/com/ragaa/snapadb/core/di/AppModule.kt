@@ -9,6 +9,9 @@ import com.ragaa.snapadb.feature.multidevice.di.multiDeviceModule
 import com.ragaa.snapadb.feature.shell.di.shellModule
 import com.ragaa.snapadb.feature.appmanager.di.appManagerModule
 import com.ragaa.snapadb.feature.fileexplorer.di.fileExplorerModule
+import com.ragaa.snapadb.feature.devicecontrols.di.deviceControlsModule
+import com.ragaa.snapadb.feature.deeplink.di.deepLinkModule
+import com.ragaa.snapadb.feature.notification.di.notificationModule
 
 val appModules = listOf(
     commonModule,
@@ -21,4 +24,7 @@ val appModules = listOf(
     shellModule,
     appManagerModule,
     fileExplorerModule,
+    deviceControlsModule,
+    deepLinkModule,
+    notificationModule,
 )

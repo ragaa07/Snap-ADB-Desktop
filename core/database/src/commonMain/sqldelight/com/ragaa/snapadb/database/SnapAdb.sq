@@ -78,3 +78,45 @@ INSERT OR REPLACE INTO device_nickname (serial, nickname) VALUES (?, ?);
 
 deleteNickname:
 DELETE FROM device_nickname WHERE serial = ?;
+
+-- Deep Link queries
+getAllDeepLinks:
+SELECT * FROM deep_link ORDER BY CASE WHEN last_used IS NULL THEN 1 ELSE 0 END, last_used DESC, created_at DESC;
+
+getFavoriteDeepLinks:
+SELECT * FROM deep_link WHERE is_favorite = 1 ORDER BY CASE WHEN last_used IS NULL THEN 1 ELSE 0 END, last_used DESC, created_at DESC;
+
+insertDeepLink:
+INSERT INTO deep_link (uri, label, target_package, is_favorite, last_used, created_at)
+VALUES (?, ?, ?, ?, NULL, ?);
+
+updateDeepLink:
+UPDATE deep_link SET uri = ?, label = ?, target_package = ?, is_favorite = ? WHERE id = ?;
+
+deleteDeepLink:
+DELETE FROM deep_link WHERE id = ?;
+
+toggleDeepLinkFavorite:
+UPDATE deep_link SET is_favorite = CASE WHEN is_favorite = 1 THEN 0 ELSE 1 END WHERE id = ?;
+
+updateDeepLinkLastUsed:
+UPDATE deep_link SET last_used = ? WHERE id = ?;
+
+searchDeepLinks:
+SELECT * FROM deep_link WHERE uri LIKE ? OR label LIKE ? ORDER BY CASE WHEN last_used IS NULL THEN 1 ELSE 0 END, last_used DESC;
+
+-- Notification Template queries
+getAllTemplates:
+SELECT * FROM notification_template ORDER BY created_at DESC;
+
+getTemplateById:
+SELECT * FROM notification_template WHERE id = ?;
+
+insertTemplate:
+INSERT INTO notification_template (name, payload_json, created_at) VALUES (?, ?, ?);
+
+updateTemplate:
+UPDATE notification_template SET name = ?, payload_json = ? WHERE id = ?;
+
+deleteTemplate:
+DELETE FROM notification_template WHERE id = ?;

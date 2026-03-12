@@ -1,49 +1,62 @@
 package com.ragaa.snapadb
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.safeContentPadding
-import androidx.compose.material3.Button
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import org.jetbrains.compose.resources.painterResource
-
-import snapadb.composeapp.generated.resources.Res
-import snapadb.composeapp.generated.resources.compose_multiplatform
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import com.ragaa.snapadb.core.adb.AdbDeviceMonitor
+import com.ragaa.snapadb.core.navigation.NavigationHost
+import com.ragaa.snapadb.core.navigation.Router
+import com.ragaa.snapadb.core.theme.SnapAdbTheme
+import com.ragaa.snapadb.core.theme.ThemeMode
+import com.ragaa.snapadb.core.theme.ThemeRepository
+import com.ragaa.snapadb.core.ui.MainShell
+import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 
 @Composable
-@Preview
 fun App() {
-    MaterialTheme {
-        var showContent by remember { mutableStateOf(false) }
-        Column(
-            modifier = Modifier
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .safeContentPadding()
-                .fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Button(onClick = { showContent = !showContent }) {
-                Text("Click me!")
-            }
-            AnimatedVisibility(showContent) {
-                val greeting = remember { Greeting().greet() }
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Image(painterResource(Res.drawable.compose_multiplatform), null)
-                    Text("Compose: $greeting")
+    val router = koinInject<Router>()
+    val deviceMonitor = koinInject<AdbDeviceMonitor>()
+    val themeRepo = koinInject<ThemeRepository>()
+    val scope = rememberCoroutineScope()
+
+    var themeMode by remember { mutableStateOf(ThemeMode.SYSTEM) }
+
+    LaunchedEffect(Unit) {
+        themeMode = themeRepo.getThemeMode()
+    }
+
+    DisposableEffect(Unit) {
+        deviceMonitor.start()
+        onDispose { deviceMonitor.stop() }
+    }
+
+    val selectedDevice by deviceMonitor.selectedDevice.collectAsState()
+    val deviceStatusText = selectedDevice?.let { device ->
+        "${device.model.ifEmpty { device.serial }} (${device.state})"
+    } ?: "No device connected"
+
+    SnapAdbTheme(themeMode = themeMode) {
+        MainShell(
+            router = router,
+            deviceStatusText = deviceStatusText,
+            themeMode = themeMode,
+            onToggleTheme = {
+                themeMode = when (themeMode) {
+                    ThemeMode.SYSTEM -> ThemeMode.DARK
+                    ThemeMode.DARK -> ThemeMode.LIGHT
+                    ThemeMode.LIGHT -> ThemeMode.SYSTEM
                 }
-            }
+                scope.launch { themeRepo.setThemeMode(themeMode) }
+            },
+        ) {
+            NavigationHost(router = router)
         }
     }
 }

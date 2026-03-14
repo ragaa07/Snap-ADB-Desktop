@@ -4,6 +4,10 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ragaa.mirror.DeviceMirror
+import com.ragaa.mirror.DownloadProgress
+import com.ragaa.mirror.ScrcpyManager
+import com.ragaa.mirror.TouchInput
 import com.ragaa.snapadb.common.DispatcherProvider
 import com.ragaa.snapadb.core.adb.AdbClient
 import com.ragaa.snapadb.core.adb.AdbDeviceMonitor
@@ -35,6 +39,8 @@ class ScreenMirrorViewModel(
     private val adbClient: AdbClient,
     private val deviceMonitor: AdbDeviceMonitor,
     private val dispatchers: DispatcherProvider,
+    private val deviceMirror: DeviceMirror,
+    private val scrcpyManager: ScrcpyManager,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<ScreenMirrorState>(ScreenMirrorState.NoDevice)
@@ -47,6 +53,7 @@ class ScreenMirrorViewModel(
     private val recordingJob = AtomicReference<Job?>(null)
     private val timerJob = AtomicReference<Job?>(null)
     private val scrcpyProcess = AtomicReference<Process?>(null)
+    private val mirrorJob = AtomicReference<Job?>(null)
 
     // Track temp files for cleanup
     private val tempFiles = AtomicReference<List<File>>(emptyList())
@@ -56,6 +63,7 @@ class ScreenMirrorViewModel(
             deviceMonitor.selectedDevice.collectLatest { device ->
                 cancelRecording()
                 stopScrcpy()
+                stopMirror()
                 _currentSerial.value = device?.serial
                 _actionResult.value = null
 
@@ -82,6 +90,12 @@ class ScreenMirrorViewModel(
             is ScreenMirrorIntent.ToggleStayAwake -> toggleStayAwake(intent.enabled)
             is ScreenMirrorIntent.DismissResult -> _actionResult.value = null
             is ScreenMirrorIntent.Retry -> _currentSerial.value?.let { loadDeviceSettings(it) }
+            is ScreenMirrorIntent.StartMirror -> startMirror()
+            is ScreenMirrorIntent.StopMirror -> stopMirror()
+            is ScreenMirrorIntent.MirrorTap -> mirrorTap(intent.x, intent.y)
+            is ScreenMirrorIntent.MirrorSwipe -> mirrorSwipe(intent.x1, intent.y1, intent.x2, intent.y2)
+            is ScreenMirrorIntent.MirrorKeyEvent -> mirrorKeyEvent(intent.keyCode)
+            is ScreenMirrorIntent.DownloadScrcpy -> downloadScrcpy()
         }
     }
 
@@ -96,7 +110,7 @@ class ScreenMirrorViewModel(
                 val stayAwakeDeferred = async(dispatchers.io) {
                     adbClient.execute(GetStayAwakeSetting(), serial).getOrDefault(0)
                 }
-                val scrcpyDeferred = async(dispatchers.io) { checkScrcpyAvailable() }
+                val scrcpyDeferred = async(dispatchers.io) { scrcpyManager.isInstalled() }
 
                 _state.value = ScreenMirrorState.Ready(
                     autoRotateEnabled = autoRotateDeferred.await(),
@@ -108,6 +122,122 @@ class ScreenMirrorViewModel(
             }
         }
     }
+
+    // --- In-App Mirror ---
+
+    private fun startMirror() {
+        val serial = _currentSerial.value ?: return
+        val currentState = _state.value as? ScreenMirrorState.Ready ?: return
+
+        _state.value = currentState.copy(isMirroring = true)
+
+        // Cancel old job before launching new one to prevent duplicates
+        mirrorJob.getAndSet(null)?.cancel()
+
+        val newJob = viewModelScope.launch {
+            var frameCount = 0
+            var lastFpsTime = System.currentTimeMillis()
+
+            deviceMirror.start(serial).collect { frame ->
+                try {
+                    val bitmap = Image.makeFromEncoded(frame.pngBytes).toComposeImageBitmap()
+                    frameCount++
+                    val now = System.currentTimeMillis()
+                    val elapsed = now - lastFpsTime
+                    val fps = if (elapsed >= 1000) {
+                        val f = (frameCount * 1000.0 / elapsed).toInt()
+                        frameCount = 0
+                        lastFpsTime = now
+                        f
+                    } else {
+                        val s = _state.value as? ScreenMirrorState.Ready
+                        s?.mirrorFps ?: 0
+                    }
+
+                    val s = _state.value as? ScreenMirrorState.Ready ?: return@collect
+                    _state.value = s.copy(
+                        mirrorFrame = bitmap,
+                        mirrorFrameWidth = frame.width,
+                        mirrorFrameHeight = frame.height,
+                        mirrorFps = fps,
+                    )
+                } catch (_: Exception) {
+                    // Skip frame decode error
+                }
+            }
+        }
+        mirrorJob.set(newJob)
+    }
+
+    private fun stopMirror() {
+        mirrorJob.getAndSet(null)?.cancel()
+        val s = _state.value as? ScreenMirrorState.Ready
+        if (s != null) {
+            _state.value = s.copy(
+                isMirroring = false,
+                mirrorFrame = null,
+                mirrorFps = 0,
+            )
+        }
+    }
+
+    private fun mirrorTap(x: Float, y: Float) {
+        val serial = _currentSerial.value ?: return
+        viewModelScope.launch(dispatchers.io) {
+            deviceMirror.sendTap(serial, x, y)
+        }
+    }
+
+    private fun mirrorSwipe(x1: Float, y1: Float, x2: Float, y2: Float) {
+        val serial = _currentSerial.value ?: return
+        viewModelScope.launch(dispatchers.io) {
+            deviceMirror.sendSwipe(serial, x1, y1, x2, y2)
+        }
+    }
+
+    private fun mirrorKeyEvent(keyCode: Int) {
+        val serial = _currentSerial.value ?: return
+        viewModelScope.launch(dispatchers.io) {
+            deviceMirror.sendKeyEvent(serial, keyCode)
+        }
+    }
+
+    // --- scrcpy Download ---
+
+    private fun downloadScrcpy() {
+        val currentState = _state.value as? ScreenMirrorState.Ready ?: return
+        _state.value = currentState.copy(scrcpyDownloading = true, scrcpyDownloadProgress = 0f, scrcpyDownloadError = null)
+
+        viewModelScope.launch {
+            try {
+                scrcpyManager.download().collect { progress ->
+                    val s = _state.value as? ScreenMirrorState.Ready ?: return@collect
+                    _state.value = s.copy(scrcpyDownloadProgress = progress.fraction)
+                }
+                val s = _state.value as? ScreenMirrorState.Ready
+                if (s != null) {
+                    _state.value = s.copy(
+                        scrcpyDownloading = false,
+                        scrcpyAvailable = scrcpyManager.isInstalled(),
+                        scrcpyDownloadProgress = 0f,
+                    )
+                }
+                _actionResult.value = ScreenMirrorResult.Success("scrcpy downloaded successfully")
+            } catch (e: Exception) {
+                val s = _state.value as? ScreenMirrorState.Ready
+                if (s != null) {
+                    _state.value = s.copy(
+                        scrcpyDownloading = false,
+                        scrcpyDownloadError = e.message,
+                        scrcpyDownloadProgress = 0f,
+                    )
+                }
+                _actionResult.value = ScreenMirrorResult.Failure("scrcpy download failed: ${e.message}")
+            }
+        }
+    }
+
+    // --- Screenshot ---
 
     private fun captureScreenshot() {
         val serial = _currentSerial.value ?: return
@@ -158,6 +288,8 @@ class ScreenMirrorViewModel(
             }
         }
     }
+
+    // --- Recording ---
 
     private fun startRecording(timeLimitSecs: Int, bitrate: Int?, resolution: String?) {
         val serial = _currentSerial.value ?: return
@@ -263,14 +395,17 @@ class ScreenMirrorViewModel(
         }
     }
 
+    // --- scrcpy ---
+
     private fun launchScrcpy(config: ScrcpyConfig) {
         val serial = _currentSerial.value ?: return
         val currentState = _state.value as? ScreenMirrorState.Ready ?: return
 
         viewModelScope.launch {
             try {
+                val scrcpyPath = scrcpyManager.resolveScrcpyPath() ?: "scrcpy"
                 val args = buildList {
-                    add("scrcpy")
+                    add(scrcpyPath)
                     add("-s")
                     add(serial)
                     addAll(config.toArgs())
@@ -309,6 +444,8 @@ class ScreenMirrorViewModel(
             _state.value = s.copy(scrcpyRunning = false)
         }
     }
+
+    // --- Rotation & Stay Awake ---
 
     private fun toggleAutoRotate(enabled: Boolean) {
         val serial = _currentSerial.value ?: return
@@ -363,6 +500,8 @@ class ScreenMirrorViewModel(
         }
     }
 
+    // --- Helpers ---
+
     private fun trackTempFile(file: File) {
         tempFiles.getAndUpdate { it + file }
     }
@@ -371,19 +510,11 @@ class ScreenMirrorViewModel(
         tempFiles.getAndSet(emptyList()).forEach { it.delete() }
     }
 
-    private fun checkScrcpyAvailable(): Boolean = try {
-        val process = ProcessBuilder(listOf("scrcpy", "--version"))
-            .redirectErrorStream(true)
-            .start()
-        process.waitFor() == 0
-    } catch (_: Exception) {
-        false
-    }
-
     override fun onCleared() {
         super.onCleared()
         cancelRecording()
         stopScrcpy()
+        stopMirror()
         cleanupTempFiles()
     }
 }
@@ -404,6 +535,16 @@ sealed class ScreenMirrorState {
         val scrcpyRunning: Boolean = false,
         val autoRotateEnabled: Boolean = false,
         val stayAwakeEnabled: Boolean = false,
+        // In-app mirror
+        val isMirroring: Boolean = false,
+        val mirrorFrame: ImageBitmap? = null,
+        val mirrorFrameWidth: Int = 0,
+        val mirrorFrameHeight: Int = 0,
+        val mirrorFps: Int = 0,
+        // scrcpy download
+        val scrcpyDownloading: Boolean = false,
+        val scrcpyDownloadProgress: Float = 0f,
+        val scrcpyDownloadError: String? = null,
     ) : ScreenMirrorState() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -417,7 +558,15 @@ sealed class ScreenMirrorState {
                 autoRotateEnabled == other.autoRotateEnabled &&
                 stayAwakeEnabled == other.stayAwakeEnabled &&
                 screenshotBitmap === other.screenshotBitmap &&
-                screenshotBytes.contentEquals(other.screenshotBytes)
+                screenshotBytes.contentEquals(other.screenshotBytes) &&
+                isMirroring == other.isMirroring &&
+                mirrorFrame === other.mirrorFrame &&
+                mirrorFrameWidth == other.mirrorFrameWidth &&
+                mirrorFrameHeight == other.mirrorFrameHeight &&
+                mirrorFps == other.mirrorFps &&
+                scrcpyDownloading == other.scrcpyDownloading &&
+                scrcpyDownloadProgress == other.scrcpyDownloadProgress &&
+                scrcpyDownloadError == other.scrcpyDownloadError
         }
 
         override fun hashCode(): Int {
@@ -431,6 +580,14 @@ sealed class ScreenMirrorState {
             result = 31 * result + scrcpyRunning.hashCode()
             result = 31 * result + autoRotateEnabled.hashCode()
             result = 31 * result + stayAwakeEnabled.hashCode()
+            result = 31 * result + isMirroring.hashCode()
+            result = 31 * result + (mirrorFrame?.hashCode() ?: 0)
+            result = 31 * result + mirrorFrameWidth
+            result = 31 * result + mirrorFrameHeight
+            result = 31 * result + mirrorFps
+            result = 31 * result + scrcpyDownloading.hashCode()
+            result = 31 * result + scrcpyDownloadProgress.hashCode()
+            result = 31 * result + (scrcpyDownloadError?.hashCode() ?: 0)
             return result
         }
     }
@@ -450,6 +607,14 @@ sealed class ScreenMirrorIntent {
     data class ToggleStayAwake(val enabled: Boolean) : ScreenMirrorIntent()
     data object DismissResult : ScreenMirrorIntent()
     data object Retry : ScreenMirrorIntent()
+    // In-app mirror
+    data object StartMirror : ScreenMirrorIntent()
+    data object StopMirror : ScreenMirrorIntent()
+    data class MirrorTap(val x: Float, val y: Float) : ScreenMirrorIntent()
+    data class MirrorSwipe(val x1: Float, val y1: Float, val x2: Float, val y2: Float) : ScreenMirrorIntent()
+    data class MirrorKeyEvent(val keyCode: Int) : ScreenMirrorIntent()
+    // scrcpy download
+    data object DownloadScrcpy : ScreenMirrorIntent()
 }
 
 // Results

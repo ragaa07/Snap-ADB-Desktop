@@ -53,3 +53,5 @@ include(":feature:performance")
 include(":feature:multidevice")
 include(":feature:deeplink")
 include(":feature:notification")
+
+include(":lib:mirror")

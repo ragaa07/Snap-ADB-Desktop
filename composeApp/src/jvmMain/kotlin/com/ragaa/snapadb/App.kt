@@ -16,6 +16,7 @@ import com.ragaa.snapadb.core.theme.SnapAdbTheme
 import com.ragaa.snapadb.core.theme.ThemeMode
 import com.ragaa.snapadb.core.theme.ThemeRepository
 import com.ragaa.snapadb.core.ui.MainShell
+import com.ragaa.snapadb.feature.screenmirror.MirrorPanel
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -27,6 +28,7 @@ fun App() {
     val scope = rememberCoroutineScope()
 
     var themeMode by remember { mutableStateOf(ThemeMode.SYSTEM) }
+    var isMirrorPanelOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         themeMode = themeRepo.getThemeMode()
@@ -55,6 +57,9 @@ fun App() {
                 }
                 scope.launch { themeRepo.setThemeMode(themeMode) }
             },
+            isMirrorPanelOpen = isMirrorPanelOpen,
+            onToggleMirrorPanel = { isMirrorPanelOpen = !isMirrorPanelOpen },
+            mirrorPanelContent = { MirrorPanel() },
         ) {
             NavigationHost(router = router)
         }

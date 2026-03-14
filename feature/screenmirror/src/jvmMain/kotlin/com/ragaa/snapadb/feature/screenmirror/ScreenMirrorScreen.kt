@@ -2,6 +2,8 @@ package com.ragaa.snapadb.feature.screenmirror
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +11,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,16 +22,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ScreenShare
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.DeviceUnknown
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FiberManualRecord
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.ScreenRotation
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,6 +44,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -54,9 +63,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.ragaa.mirror.TouchInput
 import com.ragaa.snapadb.feature.screenmirror.model.ScrcpyConfig
 import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
@@ -108,6 +122,7 @@ private fun ReadyContent(
                 }
             }
 
+            MirrorSection(state, onIntent)
             ScreenshotSection(state, onIntent)
             RecordingSection(state, onIntent)
             ScrcpySection(state, onIntent)
@@ -146,6 +161,160 @@ private fun ReadyContent(
         }
     }
 }
+
+// --- In-App Mirror Section ---
+
+@Composable
+private fun MirrorSection(state: ScreenMirrorState.Ready, onIntent: (ScreenMirrorIntent) -> Unit) {
+    SectionCard("In-App Mirror", Icons.AutoMirrored.Outlined.ScreenShare) {
+        // Control row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (!state.isMirroring) {
+                Button(onClick = { onIntent(ScreenMirrorIntent.StartMirror) }) {
+                    Icon(Icons.Outlined.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Start Mirror")
+                }
+            } else {
+                Button(
+                    onClick = { onIntent(ScreenMirrorIntent.StopMirror) },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                ) {
+                    Icon(Icons.Outlined.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Stop Mirror")
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    "${state.mirrorFps} FPS",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+
+        // Mirror display
+        state.mirrorFrame?.let { bitmap ->
+            Spacer(modifier = Modifier.height(12.dp))
+
+            var imageSize by remember { mutableStateOf(IntSize.Zero) }
+            val deviceWidth = state.mirrorFrameWidth
+            val deviceHeight = state.mirrorFrameHeight
+            val aspectRatio = if (deviceWidth > 0 && deviceHeight > 0) {
+                deviceWidth.toFloat() / deviceHeight
+            } else {
+                9f / 16f
+            }
+
+            // Drag tracking for swipe — only fire on drag end
+            var dragStart by remember { mutableStateOf(Offset.Zero) }
+            var dragEnd by remember { mutableStateOf(Offset.Zero) }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(aspectRatio)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .onSizeChanged { imageSize = it }
+                    .pointerInput(deviceWidth, deviceHeight) {
+                        detectTapGestures { offset ->
+                            if (imageSize.width > 0 && imageSize.height > 0 && deviceWidth > 0) {
+                                val scaleX = deviceWidth.toFloat() / imageSize.width
+                                val scaleY = deviceHeight.toFloat() / imageSize.height
+                                onIntent(
+                                    ScreenMirrorIntent.MirrorTap(
+                                        offset.x * scaleX,
+                                        offset.y * scaleY,
+                                    )
+                                )
+                            }
+                        }
+                    }
+                    .pointerInput(deviceWidth, deviceHeight) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                dragStart = offset
+                                dragEnd = offset
+                            },
+                            onDragEnd = {
+                                if (imageSize.width > 0 && imageSize.height > 0 && deviceWidth > 0) {
+                                    val scaleX = deviceWidth.toFloat() / imageSize.width
+                                    val scaleY = deviceHeight.toFloat() / imageSize.height
+                                    onIntent(
+                                        ScreenMirrorIntent.MirrorSwipe(
+                                            dragStart.x * scaleX,
+                                            dragStart.y * scaleY,
+                                            dragEnd.x * scaleX,
+                                            dragEnd.y * scaleY,
+                                        )
+                                    )
+                                }
+                            },
+                            onDragCancel = {},
+                            onDrag = { change, _ ->
+                                dragEnd = change.position
+                            },
+                        )
+                    },
+            ) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = "Device screen",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit,
+                )
+            }
+
+            // Navigation buttons
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                OutlinedButton(onClick = {
+                    onIntent(ScreenMirrorIntent.MirrorKeyEvent(TouchInput.KeyEvent.KEYCODE_BACK))
+                }) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back", modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Back")
+                }
+                OutlinedButton(onClick = {
+                    onIntent(ScreenMirrorIntent.MirrorKeyEvent(TouchInput.KeyEvent.KEYCODE_HOME))
+                }) {
+                    Icon(Icons.Outlined.Home, contentDescription = "Home", modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Home")
+                }
+                OutlinedButton(onClick = {
+                    onIntent(ScreenMirrorIntent.MirrorKeyEvent(TouchInput.KeyEvent.KEYCODE_RECENTS))
+                }) {
+                    Icon(Icons.AutoMirrored.Outlined.ViewList, contentDescription = "Recents", modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Recents")
+                }
+            }
+        }
+
+        if (!state.isMirroring && state.mirrorFrame == null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Stream your device screen in real-time with touch interaction",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+// --- Screenshot Section ---
 
 @Composable
 private fun ScreenshotSection(state: ScreenMirrorState.Ready, onIntent: (ScreenMirrorIntent) -> Unit) {
@@ -202,6 +371,8 @@ private fun ScreenshotSection(state: ScreenMirrorState.Ready, onIntent: (ScreenM
         }
     }
 }
+
+// --- Recording Section ---
 
 @Composable
 private fun RecordingSection(state: ScreenMirrorState.Ready, onIntent: (ScreenMirrorIntent) -> Unit) {
@@ -280,6 +451,8 @@ private fun RecordingSection(state: ScreenMirrorState.Ready, onIntent: (ScreenMi
     }
 }
 
+// --- Scrcpy Section (with download) ---
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ScrcpySection(state: ScreenMirrorState.Ready, onIntent: (ScreenMirrorIntent) -> Unit) {
@@ -292,13 +465,53 @@ private fun ScrcpySection(state: ScreenMirrorState.Ready, onIntent: (ScreenMirro
     var stayAwake by remember { mutableStateOf(true) }
     var turnScreenOff by remember { mutableStateOf(false) }
 
-    SectionCard("scrcpy (Live Mirror)", Icons.AutoMirrored.Outlined.ScreenShare) {
+    SectionCard("scrcpy (External Mirror)", Icons.Outlined.Visibility) {
         if (!state.scrcpyAvailable) {
+            // scrcpy not installed — offer download
             Text(
-                "scrcpy not found. Install it to use live mirroring.",
+                "scrcpy not found. Download it for smooth 60 FPS external mirroring.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (state.scrcpyDownloading) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (state.scrcpyDownloadProgress >= 0f) {
+                        LinearProgressIndicator(
+                            progress = { state.scrcpyDownloadProgress },
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            "${(state.scrcpyDownloadProgress * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    } else {
+                        LinearProgressIndicator(modifier = Modifier.weight(1f))
+                        Text("Downloading...", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { onIntent(ScreenMirrorIntent.DownloadScrcpy) }) {
+                        Icon(Icons.Outlined.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Download scrcpy")
+                    }
+                }
+                state.scrcpyDownloadError?.let { error ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
         } else {
             if (!state.scrcpyRunning) {
                 Row(
@@ -387,6 +600,8 @@ private fun ScrcpySection(state: ScreenMirrorState.Ready, onIntent: (ScreenMirro
         }
     }
 }
+
+// --- Quick Actions Section ---
 
 @Composable
 private fun QuickActionsSection(state: ScreenMirrorState.Ready, onIntent: (ScreenMirrorIntent) -> Unit) {

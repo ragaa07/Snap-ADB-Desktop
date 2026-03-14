@@ -128,7 +128,7 @@ private fun LoadedContent(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { viewModel.onIntent(FileExplorerIntent.SetSearchQuery(it)) },
-                modifier = Modifier.fillMaxWidth().height(40.dp),
+                modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("Search files...", style = MaterialTheme.typography.bodySmall) },
                 textStyle = MaterialTheme.typography.bodySmall,
                 singleLine = true,

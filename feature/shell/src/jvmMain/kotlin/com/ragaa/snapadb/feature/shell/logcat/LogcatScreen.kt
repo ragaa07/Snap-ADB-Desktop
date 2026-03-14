@@ -275,7 +275,7 @@ private fun CompactTextField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.height(40.dp),
+        modifier = modifier,
         placeholder = { Text(placeholder, fontSize = 12.sp) },
         textStyle = TextStyle(fontSize = 12.sp, fontFamily = FontFamily.Monospace),
         singleLine = true,

@@ -62,7 +62,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = koinViewModel()) {
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(24.dp),
+                    .padding(16.dp),
             ) {
                 // Header
                 Row(
@@ -70,7 +70,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = koinViewModel()) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("Dashboard", style = MaterialTheme.typography.headlineSmall)
+                    Text("Dashboard", style = MaterialTheme.typography.headlineMedium)
                     IconButton(onClick = { viewModel.refresh() }) {
                         Icon(Icons.Outlined.Refresh, contentDescription = "Refresh")
                     }

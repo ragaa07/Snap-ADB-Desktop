@@ -91,7 +91,7 @@ private fun ReadyContent(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             // Header
@@ -100,7 +100,7 @@ private fun ReadyContent(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Device Controls", style = MaterialTheme.typography.headlineSmall)
+                Text("Device Controls", style = MaterialTheme.typography.headlineMedium)
                 IconButton(onClick = { onIntent(DeviceControlsIntent.RefreshDisplay) }) {
                     Icon(Icons.Outlined.Refresh, contentDescription = "Refresh")
                 }

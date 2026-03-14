@@ -46,13 +46,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ragaa.snapadb.core.adb.model.LogLevel
 import com.ragaa.snapadb.core.adb.model.LogcatEntry
+import com.ragaa.snapadb.core.theme.SnapAdbTheme
 import java.io.File
 import javax.swing.JFileChooser
 
@@ -243,14 +243,15 @@ private fun StreamingContent(
 
 @Composable
 private fun LogcatRow(entry: LogcatEntry) {
+    val colors = SnapAdbTheme.colors
     val levelColor = when (entry.level) {
-        LogLevel.VERBOSE -> MaterialTheme.colorScheme.onSurfaceVariant
-        LogLevel.DEBUG -> Color(0xFF2196F3)
-        LogLevel.INFO -> Color(0xFF4CAF50)
-        LogLevel.WARN -> Color(0xFFFF9800)
-        LogLevel.ERROR -> Color(0xFFF44336)
-        LogLevel.FATAL -> Color(0xFF9C27B0)
-        LogLevel.SILENT -> MaterialTheme.colorScheme.onSurfaceVariant
+        LogLevel.VERBOSE -> colors.logVerbose
+        LogLevel.DEBUG -> colors.logDebug
+        LogLevel.INFO -> colors.logInfo
+        LogLevel.WARN -> colors.logWarn
+        LogLevel.ERROR -> colors.logError
+        LogLevel.FATAL -> colors.logFatal
+        LogLevel.SILENT -> colors.logVerbose
     }
 
     Text(

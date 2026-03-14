@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -38,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -63,12 +66,13 @@ import javax.swing.SwingUtilities
 fun FileExplorerScreen(viewModel: FileExplorerViewModel = koinViewModel()) {
     val state by viewModel.state.collectAsState()
     val actionResult by viewModel.actionResult.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
 
     when (val s = state) {
         is FileExplorerState.NoDevice -> NoDeviceState()
         is FileExplorerState.Loading -> LoadingState(s.path)
         is FileExplorerState.Error -> ErrorState(s.message, onRetry = { viewModel.onIntent(FileExplorerIntent.Refresh) })
-        is FileExplorerState.Loaded -> LoadedContent(s, actionResult, viewModel)
+        is FileExplorerState.Loaded -> LoadedContent(s, actionResult, searchQuery, viewModel)
     }
 }
 
@@ -76,16 +80,22 @@ fun FileExplorerScreen(viewModel: FileExplorerViewModel = koinViewModel()) {
 private fun LoadedContent(
     state: FileExplorerState.Loaded,
     actionResult: FileActionResult?,
+    searchQuery: String,
     viewModel: FileExplorerViewModel,
 ) {
     var showMkdirDialog by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<FileEntry?>(null) }
 
+    val filteredFiles = remember(state.files, searchQuery) {
+        if (searchQuery.isBlank()) state.files
+        else state.files.filter { it.name.contains(searchQuery, ignoreCase = true) }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
+                .padding(16.dp),
         ) {
             // Header with actions
             Row(
@@ -93,7 +103,7 @@ private fun LoadedContent(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("File Explorer", style = MaterialTheme.typography.headlineSmall)
+                Text("File Explorer", style = MaterialTheme.typography.headlineMedium)
                 Row {
                     IconButton(onClick = { viewModel.onIntent(FileExplorerIntent.NavigateUp) }) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Up")
@@ -113,16 +123,49 @@ private fun LoadedContent(
 
             // Breadcrumbs
             BreadcrumbBar(state.breadcrumbs, viewModel::onIntent)
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Search bar
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { viewModel.onIntent(FileExplorerIntent.SetSearchQuery(it)) },
+                modifier = Modifier.fillMaxWidth().height(40.dp),
+                placeholder = { Text("Search files...", style = MaterialTheme.typography.bodySmall) },
+                textStyle = MaterialTheme.typography.bodySmall,
+                singleLine = true,
+                leadingIcon = {
+                    Icon(
+                        Icons.Outlined.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(
+                            onClick = { viewModel.onIntent(FileExplorerIntent.SetSearchQuery("")) },
+                            modifier = Modifier.size(18.dp),
+                        ) {
+                            Icon(Icons.Outlined.Close, contentDescription = "Clear search", modifier = Modifier.size(14.dp))
+                        }
+                    }
+                },
+                shape = RoundedCornerShape(8.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
+            )
+            Spacer(modifier = Modifier.height(8.dp))
 
             // File list
-            if (state.files.isEmpty()) {
+            if (filteredFiles.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "Empty directory",
+                        if (searchQuery.isNotBlank()) "No files matching \"$searchQuery\"" else "Empty directory",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -132,7 +175,7 @@ private fun LoadedContent(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    items(state.files, key = { it.path }) { file ->
+                    items(filteredFiles, key = { it.path }) { file ->
                         FileRow(
                             file = file,
                             currentPath = state.currentPath,

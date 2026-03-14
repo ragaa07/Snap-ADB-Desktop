@@ -39,6 +39,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextStyle
+import com.ragaa.snapadb.core.theme.SnapAdbTheme
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -95,9 +96,9 @@ private fun TerminalContent(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 13.sp,
                         color = when (line.type) {
-                            OutputType.COMMAND -> MaterialTheme.colorScheme.primary
-                            OutputType.STDOUT -> MaterialTheme.colorScheme.onSurface
-                            OutputType.STDERR -> MaterialTheme.colorScheme.error
+                            OutputType.COMMAND -> SnapAdbTheme.colors.terminalCommand
+                            OutputType.STDOUT -> SnapAdbTheme.colors.terminalStdout
+                            OutputType.STDERR -> SnapAdbTheme.colors.terminalStderr
                         },
                     ),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),

@@ -63,7 +63,7 @@ fun MultiDeviceScreen(viewModel: MultiDeviceViewModel = koinViewModel()) {
     var editingNicknameSerial by remember { mutableStateOf<String?>(null) }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(16.dp),
     ) {
         // Header
         Row(
@@ -72,7 +72,7 @@ fun MultiDeviceScreen(viewModel: MultiDeviceViewModel = koinViewModel()) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column {
-                Text("Connected Devices", style = MaterialTheme.typography.headlineSmall)
+                Text("Connected Devices", style = MaterialTheme.typography.headlineMedium)
                 Text(
                     "${devicesWithNicknames.size} device(s)",
                     style = MaterialTheme.typography.bodyMedium,
@@ -259,9 +259,9 @@ private fun DeviceCard(
 @Composable
 private fun StateBadge(state: DeviceState) {
     val (text, color) = when (state) {
-        DeviceState.DEVICE -> "Online" to MaterialTheme.colorScheme.primary
+        DeviceState.DEVICE -> "Online" to com.ragaa.snapadb.core.theme.SnapAdbTheme.colors.connected
         DeviceState.OFFLINE -> "Offline" to MaterialTheme.colorScheme.error
-        DeviceState.UNAUTHORIZED -> "Unauthorized" to MaterialTheme.colorScheme.error
+        DeviceState.UNAUTHORIZED -> "Unauthorized" to MaterialTheme.colorScheme.tertiary
         DeviceState.AUTHORIZING -> "Authorizing" to MaterialTheme.colorScheme.tertiary
         DeviceState.NO_PERMISSIONS -> "No Permissions" to MaterialTheme.colorScheme.error
         DeviceState.UNKNOWN -> "Unknown" to MaterialTheme.colorScheme.onSurfaceVariant

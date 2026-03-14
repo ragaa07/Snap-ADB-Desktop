@@ -88,7 +88,7 @@ private fun LoadedContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
+                .padding(16.dp),
         ) {
             // Header
             Row(
@@ -97,7 +97,7 @@ private fun LoadedContent(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column {
-                    Text("App Manager", style = MaterialTheme.typography.headlineSmall)
+                    Text("App Manager", style = MaterialTheme.typography.headlineMedium)
                     Text(
                         "${state.apps.size} of ${state.totalCount} apps",
                         style = MaterialTheme.typography.bodySmall,
@@ -256,7 +256,7 @@ private fun AppDetailsDialog(app: AppInfo, onDismiss: () -> Unit) {
         Column(
             modifier = Modifier
                 .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
-                .padding(24.dp)
+                .padding(16.dp)
                 .width(400.dp),
         ) {
             Row(

@@ -17,7 +17,8 @@ import com.ragaa.snapadb.feature.multidevice.MultiDeviceScreen
 import com.ragaa.snapadb.feature.notification.NotificationScreen
 import com.ragaa.snapadb.feature.performance.PerformanceScreen
 import com.ragaa.snapadb.feature.screenmirror.ScreenMirrorScreen
-import com.ragaa.snapadb.feature.shell.ShellScreen
+import com.ragaa.snapadb.feature.shell.LogcatOnlyScreen
+import com.ragaa.snapadb.feature.shell.TerminalOnlyScreen
 
 @Composable
 fun NavigationHost(router: Router, modifier: Modifier = Modifier) {
@@ -34,7 +35,8 @@ fun NavigationHost(router: Router, modifier: Modifier = Modifier) {
             is Route.MultiDevice -> MultiDeviceScreen()
             is Route.AppManager -> AppManagerScreen()
             is Route.FileExplorer -> FileExplorerScreen()
-            is Route.Shell -> ShellScreen()
+            is Route.Shell -> TerminalOnlyScreen()
+            is Route.Logcat -> LogcatOnlyScreen()
             is Route.ScreenMirror -> ScreenMirrorScreen()
             is Route.DeviceControls -> DeviceControlsScreen()
             is Route.Performance -> PerformanceScreen()

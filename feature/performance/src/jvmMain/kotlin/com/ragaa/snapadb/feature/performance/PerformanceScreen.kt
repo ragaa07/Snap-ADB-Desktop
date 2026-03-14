@@ -63,6 +63,8 @@ import javax.swing.JFileChooser
 import javax.swing.SwingUtilities
 import javax.swing.filechooser.FileNameExtensionFilter
 
+import com.ragaa.snapadb.core.theme.SnapAdbTheme
+
 @Composable
 fun PerformanceScreen(viewModel: PerformanceViewModel = koinViewModel()) {
     val state by viewModel.state.collectAsState()
@@ -162,7 +164,7 @@ private fun ControlBar(state: PerformanceState.Ready, onIntent: (PerformanceInte
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Performance", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+        Text("Performance", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
 
         // Polling interval
         ExposedDropdownMenuBox(
@@ -252,21 +254,21 @@ private fun OverviewTab(state: PerformanceState.Ready) {
             title = "CPU",
             value = snap.cpuInfo?.let { "%.1f%%".format(it.overallPercent) } ?: "—",
             icon = Icons.Outlined.Speed,
-            color = Color(0xFF2196F3),
+            color = SnapAdbTheme.colors.chartBlue,
             modifier = Modifier.weight(1f),
         )
         SummaryCard(
             title = "Memory",
             value = snap.memoryInfo?.let { "${it.usagePercent}%" } ?: "—",
             icon = Icons.Outlined.Memory,
-            color = Color(0xFF4CAF50),
+            color = SnapAdbTheme.colors.chartGreen,
             modifier = Modifier.weight(1f),
         )
         SummaryCard(
             title = "Battery",
             value = snap.batteryInfo?.let { "${it.level}%" } ?: "—",
             icon = Icons.Outlined.Battery5Bar,
-            color = Color(0xFFFF9800),
+            color = SnapAdbTheme.colors.chartOrange,
             modifier = Modifier.weight(1f),
         )
     }
@@ -275,13 +277,13 @@ private fun OverviewTab(state: PerformanceState.Ready) {
     SectionCard("System Overview") {
         val series = buildList {
             if (snap.cpuPoints.isNotEmpty()) {
-                add(ChartSeries("CPU", Color(0xFF2196F3), snap.cpuPoints))
+                add(ChartSeries("CPU", SnapAdbTheme.colors.chartBlue, snap.cpuPoints))
             }
             if (snap.memoryPoints.isNotEmpty()) {
-                add(ChartSeries("Memory", Color(0xFF4CAF50), snap.memoryPoints))
+                add(ChartSeries("Memory", SnapAdbTheme.colors.chartGreen, snap.memoryPoints))
             }
             if (snap.batteryPoints.isNotEmpty()) {
-                add(ChartSeries("Battery", Color(0xFFFF9800), snap.batteryPoints))
+                add(ChartSeries("Battery", SnapAdbTheme.colors.chartOrange, snap.batteryPoints))
             }
         }
         if (series.isEmpty()) {
@@ -298,9 +300,9 @@ private fun OverviewTab(state: PerformanceState.Ready) {
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.padding(top = 8.dp),
         ) {
-            LegendItem("CPU", Color(0xFF2196F3))
-            LegendItem("Memory", Color(0xFF4CAF50))
-            LegendItem("Battery", Color(0xFFFF9800))
+            LegendItem("CPU", SnapAdbTheme.colors.chartBlue)
+            LegendItem("Memory", SnapAdbTheme.colors.chartGreen)
+            LegendItem("Battery", SnapAdbTheme.colors.chartOrange)
         }
     }
 }
@@ -315,7 +317,7 @@ private fun CpuTab(state: PerformanceState.Ready) {
             EmptyChartPlaceholder()
         } else {
             LineChart(
-                series = listOf(ChartSeries("CPU", Color(0xFF2196F3), snap.cpuPoints)),
+                series = listOf(ChartSeries("CPU", SnapAdbTheme.colors.chartBlue, snap.cpuPoints)),
                 config = ChartConfig(maxY = 100f, yAxisLabel = "%"),
                 modifier = Modifier.fillMaxWidth().height(250.dp),
             )
@@ -354,7 +356,7 @@ private fun MemoryTab(state: PerformanceState.Ready, onIntent: (PerformanceInten
             EmptyChartPlaceholder()
         } else {
             LineChart(
-                series = listOf(ChartSeries("Memory", Color(0xFF4CAF50), snap.memoryPoints)),
+                series = listOf(ChartSeries("Memory", SnapAdbTheme.colors.chartGreen, snap.memoryPoints)),
                 config = ChartConfig(maxY = 100f, yAxisLabel = "%"),
                 modifier = Modifier.fillMaxWidth().height(250.dp),
             )
@@ -423,7 +425,7 @@ private fun BatteryTab(state: PerformanceState.Ready) {
             EmptyChartPlaceholder()
         } else {
             LineChart(
-                series = listOf(ChartSeries("Battery", Color(0xFFFF9800), snap.batteryPoints)),
+                series = listOf(ChartSeries("Battery", SnapAdbTheme.colors.chartOrange, snap.batteryPoints)),
                 config = ChartConfig(maxY = 100f, yAxisLabel = "%"),
                 modifier = Modifier.fillMaxWidth().height(200.dp),
             )
@@ -436,7 +438,7 @@ private fun BatteryTab(state: PerformanceState.Ready) {
         } else {
             val maxTemp = snap.batteryTempPoints.maxOfOrNull { it.value }?.let { (it + 10f).coerceAtMost(60f) } ?: 60f
             LineChart(
-                series = listOf(ChartSeries("Temp", Color(0xFFF44336), snap.batteryTempPoints)),
+                series = listOf(ChartSeries("Temp", SnapAdbTheme.colors.chartRed, snap.batteryTempPoints)),
                 config = ChartConfig(minY = 0f, maxY = maxTemp, yAxisLabel = "\u00B0C", gridLineCount = 3),
                 modifier = Modifier.fillMaxWidth().height(200.dp),
             )

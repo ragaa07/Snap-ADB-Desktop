@@ -30,6 +30,9 @@ class FileExplorerViewModel(
     private val _actionResult = MutableStateFlow<FileActionResult?>(null)
     val actionResult: StateFlow<FileActionResult?> = _actionResult.asStateFlow()
 
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
     private var currentSerial: String? = null
 
     init {
@@ -56,12 +59,14 @@ class FileExplorerViewModel(
             is FileExplorerIntent.PushFile -> pushFile(intent.localPath)
             is FileExplorerIntent.Delete -> deleteFile(intent.remotePath)
             is FileExplorerIntent.MakeDirectory -> makeDirectory(intent.name)
+            is FileExplorerIntent.SetSearchQuery -> _searchQuery.value = intent.query
             is FileExplorerIntent.DismissResult -> _actionResult.value = null
         }
     }
 
     private fun navigateTo(path: String) {
         val serial = currentSerial ?: return
+        _searchQuery.value = ""
         viewModelScope.launch {
             val current = _state.value
             val prevPath = (current as? FileExplorerState.Loaded)?.currentPath
@@ -201,6 +206,7 @@ sealed class FileExplorerIntent {
     data class PushFile(val localPath: String) : FileExplorerIntent()
     data class Delete(val remotePath: String) : FileExplorerIntent()
     data class MakeDirectory(val name: String) : FileExplorerIntent()
+    data class SetSearchQuery(val query: String) : FileExplorerIntent()
     data object DismissResult : FileExplorerIntent()
 }
 

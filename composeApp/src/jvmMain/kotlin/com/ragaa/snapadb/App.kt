@@ -15,6 +15,7 @@ import com.ragaa.snapadb.core.navigation.Router
 import com.ragaa.snapadb.core.theme.SnapAdbTheme
 import com.ragaa.snapadb.core.theme.ThemeMode
 import com.ragaa.snapadb.core.theme.ThemeRepository
+import com.ragaa.snapadb.core.ui.DeviceInfo
 import com.ragaa.snapadb.core.ui.MainShell
 import com.ragaa.snapadb.feature.screenmirror.MirrorPanel
 import kotlinx.coroutines.launch
@@ -40,14 +41,27 @@ fun App() {
     }
 
     val selectedDevice by deviceMonitor.selectedDevice.collectAsState()
-    val deviceStatusText = selectedDevice?.let { device ->
-        "${device.model.ifEmpty { device.serial }} (${device.state})"
-    } ?: "No device connected"
+    val allDevices by deviceMonitor.devices.collectAsState()
+
+    val devices = allDevices.map { device ->
+        DeviceInfo(
+            serial = device.serial,
+            model = device.model,
+            state = device.state.name.lowercase(),
+        )
+    }
+
+    val currentDevice = selectedDevice?.let { device ->
+        DeviceInfo(
+            serial = device.serial,
+            model = device.model,
+            state = device.state.name.lowercase(),
+        )
+    }
 
     SnapAdbTheme(themeMode = themeMode) {
         MainShell(
             router = router,
-            deviceStatusText = deviceStatusText,
             themeMode = themeMode,
             onToggleTheme = {
                 themeMode = when (themeMode) {
@@ -59,6 +73,12 @@ fun App() {
             },
             isMirrorPanelOpen = isMirrorPanelOpen,
             onToggleMirrorPanel = { isMirrorPanelOpen = !isMirrorPanelOpen },
+            devices = devices,
+            selectedDevice = currentDevice,
+            onSelectDevice = { deviceInfo ->
+                val adbDevice = allDevices.find { it.serial == deviceInfo.serial }
+                adbDevice?.let { deviceMonitor.selectDevice(it) }
+            },
             mirrorPanelContent = { MirrorPanel() },
         ) {
             NavigationHost(router = router)

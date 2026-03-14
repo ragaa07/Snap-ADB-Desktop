@@ -88,10 +88,10 @@ private fun ReadyContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
+                .padding(16.dp),
         ) {
             // Header
-            Text("Notification Tester", style = MaterialTheme.typography.headlineSmall)
+            Text("Notification Tester", style = MaterialTheme.typography.headlineMedium)
             Spacer(modifier = Modifier.height(16.dp))
 
             // Compose form

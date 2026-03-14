@@ -19,7 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.DeviceUnknown
+import com.ragaa.snapadb.core.ui.components.NoDeviceState
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Save
@@ -55,7 +55,7 @@ fun DeepLinkScreen(viewModel: DeepLinkViewModel = koinViewModel()) {
     val actionResult by viewModel.actionResult.collectAsState()
 
     when (val s = state) {
-        is DeepLinkState.NoDevice -> NoDeviceState()
+        is DeepLinkState.NoDevice -> NoDeviceState("Connect a device to test deep links")
         is DeepLinkState.Ready -> ReadyContent(
             state = s,
             actionResult = actionResult,
@@ -309,18 +309,5 @@ private fun LinkRow(link: DeepLinkItem, onIntent: (DeepLinkIntent) -> Unit) {
                 TextButton(onClick = { showDeleteConfirmation = false }) { Text("Cancel") }
             },
         )
-    }
-}
-
-@Composable
-private fun NoDeviceState() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Outlined.DeviceUnknown, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("No device selected", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Connect a device to test deep links", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
     }
 }

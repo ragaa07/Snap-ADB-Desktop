@@ -19,8 +19,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AirplanemodeActive
-import androidx.compose.material.icons.outlined.DeviceUnknown
-import androidx.compose.material.icons.outlined.ErrorOutline
+import com.ragaa.snapadb.core.ui.components.ErrorState
+import com.ragaa.snapadb.core.ui.components.LoadingState
+import com.ragaa.snapadb.core.ui.components.NoDeviceState
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.NetworkWifi
 import androidx.compose.material.icons.outlined.PhoneAndroid
@@ -33,7 +34,6 @@ import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -69,7 +69,7 @@ fun DeviceControlsScreen(viewModel: DeviceControlsViewModel = koinViewModel()) {
     val actionResult by viewModel.actionResult.collectAsState()
 
     when (val s = state) {
-        is DeviceControlsState.NoDevice -> NoDeviceState()
+        is DeviceControlsState.NoDevice -> NoDeviceState("Connect a device to use controls")
         is DeviceControlsState.Loading -> LoadingState()
         is DeviceControlsState.Error -> ErrorState(s.message, onRetry = { viewModel.onIntent(DeviceControlsIntent.RefreshDisplay) })
         is DeviceControlsState.Ready -> ReadyContent(
@@ -523,37 +523,3 @@ private fun ActionButton(
     }
 }
 
-@Composable
-private fun NoDeviceState() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Outlined.DeviceUnknown, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("No device selected", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Connect a device to use controls", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun LoadingState() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
-    }
-}
-
-@Composable
-private fun ErrorState(message: String, onRetry: () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.error)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Something went wrong", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onRetry) { Text("Retry") }
-        }
-    }
-}

@@ -25,16 +25,15 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.DeviceUnknown
 import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.ErrorOutline
+import com.ragaa.snapadb.core.ui.components.ErrorState
+import com.ragaa.snapadb.core.ui.components.NoDeviceState
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -69,7 +68,7 @@ fun FileExplorerScreen(viewModel: FileExplorerViewModel = koinViewModel()) {
     val searchQuery by viewModel.searchQuery.collectAsState()
 
     when (val s = state) {
-        is FileExplorerState.NoDevice -> NoDeviceState()
+        is FileExplorerState.NoDevice -> NoDeviceState("Connect a device to browse files")
         is FileExplorerState.Loading -> LoadingState(s.path)
         is FileExplorerState.Error -> ErrorState(s.message, onRetry = { viewModel.onIntent(FileExplorerIntent.Refresh) })
         is FileExplorerState.Loaded -> LoadedContent(s, actionResult, searchQuery, viewModel)
@@ -427,28 +426,6 @@ private fun showPushDialog(onIntent: (FileExplorerIntent) -> Unit) {
 }
 
 @Composable
-private fun NoDeviceState() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Outlined.DeviceUnknown,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("No device selected", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                "Connect a device to browse files",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
 private fun LoadingState(path: String) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -463,26 +440,3 @@ private fun LoadingState(path: String) {
     }
 }
 
-@Composable
-private fun ErrorState(message: String, onRetry: () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Outlined.ErrorOutline,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.error,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Something went wrong", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onRetry) { Text("Retry") }
-        }
-    }
-}

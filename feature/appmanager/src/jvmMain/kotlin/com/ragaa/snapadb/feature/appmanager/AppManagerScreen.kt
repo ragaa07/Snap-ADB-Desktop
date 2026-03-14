@@ -21,15 +21,14 @@ import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DeleteSweep
-import androidx.compose.material.icons.outlined.DeviceUnknown
-import androidx.compose.material.icons.outlined.ErrorOutline
+import com.ragaa.snapadb.core.ui.components.ErrorState
+import com.ragaa.snapadb.core.ui.components.LoadingState
+import com.ragaa.snapadb.core.ui.components.NoDeviceState
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.InstallMobile
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Stop
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -63,7 +62,7 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = koinViewModel()) {
     val actionResult by viewModel.actionResult.collectAsState()
 
     when (val s = state) {
-        is AppManagerState.NoDevice -> NoDeviceState()
+        is AppManagerState.NoDevice -> NoDeviceState("Connect a device to manage apps")
         is AppManagerState.Loading -> LoadingState()
         is AppManagerState.Error -> ErrorState(s.message, onRetry = { viewModel.onIntent(AppManagerIntent.Refresh) })
         is AppManagerState.Loaded -> LoadedContent(
@@ -311,55 +310,3 @@ private fun showInstallDialog(onIntent: (AppManagerIntent) -> Unit) {
     }
 }
 
-@Composable
-private fun NoDeviceState() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Outlined.DeviceUnknown,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("No device selected", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                "Connect a device to manage apps",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun LoadingState() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
-    }
-}
-
-@Composable
-private fun ErrorState(message: String, onRetry: () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Outlined.ErrorOutline,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.error,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Something went wrong", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onRetry) { Text("Retry") }
-        }
-    }
-}

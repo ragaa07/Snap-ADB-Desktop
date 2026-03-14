@@ -18,7 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.DeviceUnknown
+import com.ragaa.snapadb.core.ui.components.NoDeviceState
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Save
@@ -55,7 +55,7 @@ fun NotificationScreen(viewModel: NotificationViewModel = koinViewModel()) {
     val actionResult by viewModel.actionResult.collectAsState()
 
     when (val s = state) {
-        is NotificationState.NoDevice -> NoDeviceState()
+        is NotificationState.NoDevice -> NoDeviceState("Connect a device to test notifications")
         is NotificationState.Ready -> ReadyContent(
             state = s,
             actionResult = actionResult,
@@ -300,18 +300,5 @@ private fun TemplateRow(template: NotificationTemplate, onIntent: (NotificationI
                 TextButton(onClick = { showDeleteConfirmation = false }) { Text("Cancel") }
             },
         )
-    }
-}
-
-@Composable
-private fun NoDeviceState() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Outlined.DeviceUnknown, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("No device selected", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Connect a device to test notifications", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
     }
 }

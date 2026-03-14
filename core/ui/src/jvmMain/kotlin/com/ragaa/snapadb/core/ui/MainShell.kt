@@ -32,10 +32,13 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +54,7 @@ import com.ragaa.snapadb.core.theme.SnapMint
 import com.ragaa.snapadb.core.theme.ThemeMode
 import com.ragaa.snapadb.core.ui.sidebar.RightToolBar
 import com.ragaa.snapadb.core.ui.sidebar.Sidebar
+import kotlinx.coroutines.delay
 
 data class DeviceInfo(
     val serial: String,
@@ -68,6 +72,8 @@ fun MainShell(
     devices: List<DeviceInfo>,
     selectedDevice: DeviceInfo?,
     onSelectDevice: (DeviceInfo) -> Unit,
+    globalMessage: String? = null,
+    onDismissGlobalMessage: () -> Unit = {},
     mirrorPanelContent: @Composable () -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -82,7 +88,8 @@ fun MainShell(
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
-    ) { Column(modifier = Modifier.fillMaxSize()) {
+    ) { Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize()) {
         // Top Bar
         TopBar(
             selectedDevice = selectedDevice,
@@ -139,6 +146,29 @@ fun MainShell(
 
         // Status bar
         StatusBar(selectedDevice = selectedDevice, deviceCount = devices.size)
+        }
+
+        // Global snackbar
+        globalMessage?.let { message ->
+            LaunchedEffect(message) {
+                delay(4000)
+                onDismissGlobalMessage()
+            }
+            Snackbar(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp),
+                action = {
+                    TextButton(onClick = onDismissGlobalMessage) {
+                        Text("Dismiss")
+                    }
+                },
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            ) {
+                Text(message)
+            }
+        }
     } }
 }
 

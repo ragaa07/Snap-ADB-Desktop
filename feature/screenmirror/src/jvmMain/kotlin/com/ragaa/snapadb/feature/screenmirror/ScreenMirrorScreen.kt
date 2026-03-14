@@ -25,9 +25,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ScreenShare
 import androidx.compose.material.icons.outlined.CameraAlt
-import androidx.compose.material.icons.outlined.DeviceUnknown
+import com.ragaa.snapadb.core.ui.components.ErrorState
+import com.ragaa.snapadb.core.ui.components.LoadingState
+import com.ragaa.snapadb.core.ui.components.NoDeviceState
 import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FiberManualRecord
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -85,7 +86,7 @@ fun ScreenMirrorScreen(viewModel: ScreenMirrorViewModel = koinViewModel()) {
     val actionResult by viewModel.actionResult.collectAsState()
 
     when (val s = state) {
-        is ScreenMirrorState.NoDevice -> NoDeviceState()
+        is ScreenMirrorState.NoDevice -> NoDeviceState("Connect a device to use screen mirror")
         is ScreenMirrorState.Loading -> LoadingState()
         is ScreenMirrorState.Error -> ErrorState(s.message, onRetry = { viewModel.onIntent(ScreenMirrorIntent.Retry) })
         is ScreenMirrorState.Ready -> ReadyContent(
@@ -683,41 +684,6 @@ private fun SectionCard(title: String, icon: ImageVector, content: @Composable (
         }
         Spacer(modifier = Modifier.height(12.dp))
         content()
-    }
-}
-
-@Composable
-private fun NoDeviceState() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Outlined.DeviceUnknown, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("No device selected", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Connect a device to use screen mirror", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun LoadingState() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator()
-    }
-}
-
-@Composable
-private fun ErrorState(message: String, onRetry: () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Outlined.ErrorOutline, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.error)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Something went wrong", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onRetry) { Text("Retry") }
-        }
     }
 }
 

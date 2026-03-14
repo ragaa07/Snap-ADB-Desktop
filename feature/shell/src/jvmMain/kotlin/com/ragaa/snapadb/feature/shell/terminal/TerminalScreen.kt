@@ -17,7 +17,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteSweep
-import androidx.compose.material.icons.outlined.DeviceUnknown
+import com.ragaa.snapadb.core.ui.components.NoDeviceState
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -51,7 +51,7 @@ fun TerminalScreen(viewModel: TerminalViewModel) {
     val input by viewModel.input.collectAsState()
 
     when (val s = state) {
-        is TerminalState.NoDevice -> NoDeviceState()
+        is TerminalState.NoDevice -> NoDeviceState("Connect a device to use the terminal")
         is TerminalState.Ready -> TerminalContent(
             output = s.output,
             input = input,
@@ -169,23 +169,3 @@ private fun TerminalContent(
     }
 }
 
-@Composable
-private fun NoDeviceState() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                imageVector = Icons.Outlined.DeviceUnknown,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("No device selected", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Connect a device to use the terminal",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}

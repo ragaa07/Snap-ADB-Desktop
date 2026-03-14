@@ -4,18 +4,25 @@ A modern desktop ADB (Android Debug Bridge) client built with Kotlin Multiplatfo
 
 ## Features
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| Dashboard | Done | Device info, battery, storage, and memory at a glance |
-| Multi-Device | Done | Connect, pair, disconnect, and nickname multiple devices |
-| Shell & Logs | Done | Interactive ADB shell terminal and streaming logcat viewer |
-| App Manager | Planned | Install, uninstall, and manage apps |
-| File Explorer | Planned | Browse and transfer files on-device |
-| Screen Mirror | Planned | Mirror and control the device screen |
-| Device Controls | Planned | Quick actions (reboot, screenshot, input) |
-| Performance | Planned | CPU, memory, and network monitoring |
-| Deep Links | Planned | Manage and fire deep links/intents |
-| Notifications | Planned | Push custom notification payloads |
+| Feature | Description |
+|---------|-------------|
+| **Dashboard** | Device info, battery, storage, and memory at a glance |
+| **Multi-Device** | Connect, pair, disconnect, and nickname multiple devices |
+| **App Manager** | List, install, uninstall, force-stop, clear data, extract APKs |
+| **File Explorer** | Browse device filesystem, push/pull files, create directories, delete |
+| **Shell** | Interactive ADB shell terminal with command history |
+| **Logcat** | Real-time log streaming with filters, search, pause/resume, export |
+| **Screen Mirror** | In-app screen mirror via scrcpy, screenshots, screen recording |
+| **Performance** | Live CPU, memory, battery, and temperature charts with CSV export |
+| **Device Controls** | Input injection, display settings, reboot modes, network controls |
+| **Deep Links** | Fire URIs, save favorites, browse history (persisted via SQLite) |
+| **Notifications** | Compose and send test notifications, save templates |
+
+### General
+- Dark/Light/System theme with "Midnight Developer" palette
+- Keyboard shortcuts (Cmd/Ctrl+1–9 for navigation)
+- Window position and size persistence
+- Global error handling (ADB not found screen, device disconnect notifications)
 
 ## Screenshots
 
@@ -43,18 +50,20 @@ core/
   navigation/         Router with StateFlow-based back stack
   common/             DispatcherProvider, ActionResult, shared utilities
   theme/              Material 3 theming with System/Dark/Light modes
-  ui/                 MainShell layout, Sidebar navigation rail
+  ui/                 MainShell layout, Sidebar, shared UI components
 feature/
   dashboard/          Device overview cards
   multidevice/        Device list, connect/pair dialogs, nicknames
-  shell/              Terminal (one-shot commands) + Logcat (streaming viewer)
-  appmanager/         (placeholder)
-  fileexplorer/       (placeholder)
-  screenmirror/       (placeholder)
-  devicecontrols/     (placeholder)
-  performance/        (placeholder)
-  deeplink/           (placeholder)
-  notification/       (placeholder)
+  appmanager/         App management with install/uninstall/force-stop
+  fileexplorer/       File browsing, push/pull, delete, symlink resolution
+  shell/              Terminal (interactive commands) + Logcat (streaming viewer)
+  screenmirror/       scrcpy integration, screenshots, screen recording
+  devicecontrols/     Input injection, display, reboot, network settings
+  performance/        Live Canvas charts with per-app memory monitoring
+  deeplink/           Deep link testing with SQLite-persisted favorites/history
+  notification/       Notification testing with saved templates
+lib/
+  mirror/             scrcpy integration library
 build-logic/          Convention plugins (snapadb.kmp.library, snapadb.kmp.compose.library)
 ```
 
@@ -63,8 +72,12 @@ Each feature module follows the **MVI pattern**: sealed State + sealed Intent + 
 ## Prerequisites
 
 - **JDK 17+**
-- **Android SDK** with `adb` on your PATH (or `ANDROID_HOME` / `ANDROID_SDK_ROOT` set)
+- **Android SDK** with `adb` available via one of:
+  - `ANDROID_HOME` environment variable
+  - `ANDROID_SDK_ROOT` environment variable
+  - System `PATH`
 - A connected Android device or emulator with USB debugging enabled
+- **scrcpy** (optional) — required for screen mirror feature; auto-downloaded if not found
 
 ## Build & Run
 
@@ -89,6 +102,20 @@ Each feature module follows the **MVI pattern**: sealed State + sealed Intent + 
 ```
 
 On Windows, replace `./gradlew` with `.\gradlew.bat`.
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| Cmd/Ctrl + 1 | Dashboard |
+| Cmd/Ctrl + 2 | Devices |
+| Cmd/Ctrl + 3 | Apps |
+| Cmd/Ctrl + 4 | Files |
+| Cmd/Ctrl + 5 | Shell |
+| Cmd/Ctrl + 6 | Logcat |
+| Cmd/Ctrl + 7 | Mirror |
+| Cmd/Ctrl + 8 | Performance |
+| Cmd/Ctrl + 9 | Controls |
 
 ## Distribution
 

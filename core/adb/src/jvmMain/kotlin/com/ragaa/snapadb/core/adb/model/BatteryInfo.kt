@@ -6,6 +6,8 @@ data class BatteryInfo(
     val health: String,
     val plugged: PlugType,
     val temperature: Float,
+    val voltage: Int = 0,
+    val currentNow: Int = 0,
 )
 
 enum class BatteryStatus {

@@ -35,6 +35,21 @@ class AdbClient(
         command.parse(result)
     }
 
+    suspend fun <T> execute(command: AdbCommand<T>, deviceSerial: String? = null, timeoutMs: Long): Result<T> = runCatching {
+        val args = buildArgs(command.args(), deviceSerial)
+        val result = adbProcess.execute(args, timeout = timeoutMs)
+
+        if (result.exitCode != 0) {
+            throw AdbException.CommandFailed(
+                command = args.joinToString(" "),
+                exitCode = result.exitCode,
+                stderr = result.stderr
+            )
+        }
+
+        command.parse(result)
+    }
+
     fun <T> stream(command: StreamingAdbCommand<T>, deviceSerial: String? = null): Flow<T> {
         val args = buildArgs(command.args(), deviceSerial)
         return adbProcess.stream(args).mapNotNull { line ->

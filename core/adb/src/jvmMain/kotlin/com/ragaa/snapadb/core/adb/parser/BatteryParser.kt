@@ -35,6 +35,8 @@ object BatteryParser {
             health = healthString(props["health"]?.toIntOrNull() ?: 0),
             plugged = PlugType.fromInt(props["plugged"]?.toIntOrNull() ?: 0),
             temperature = (props["temperature"]?.toFloatOrNull() ?: 0f) / 10f,
+            voltage = props["voltage"]?.toIntOrNull() ?: 0,
+            currentNow = props["current now"]?.toIntOrNull() ?: 0,
         )
     }
 

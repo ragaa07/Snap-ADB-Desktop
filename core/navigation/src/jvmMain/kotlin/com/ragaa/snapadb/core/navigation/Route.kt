@@ -13,4 +13,5 @@ sealed class Route(val title: String) {
     data object DeepLink : Route("Deep Links")
     data object Notification : Route("Notifications")
     data object AppData : Route("App Data")
+    data object BugReporter : Route("Bug Report")
 }

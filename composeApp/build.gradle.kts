@@ -32,6 +32,7 @@ kotlin {
             implementation(projects.feature.deeplink)
             implementation(projects.feature.notification)
             implementation(projects.feature.appdata)
+            implementation(projects.feature.bugreporter)
 
             implementation(compose.runtime)
             implementation(compose.foundation)

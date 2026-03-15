@@ -32,3 +32,12 @@ class ClearLogcat : AdbCommand<String> {
     override fun args(): List<String> = listOf("logcat", "-c")
     override fun parse(result: ProcessResult): String = result.stdout
 }
+
+class DumpLogcat(private val maxLines: Int = 5000) : AdbCommand<String> {
+    init {
+        require(maxLines in 100..50_000) { "maxLines must be between 100 and 50,000" }
+    }
+
+    override fun args(): List<String> = listOf("logcat", "-d", "-v", "threadtime", "-t", "$maxLines")
+    override fun parse(result: ProcessResult): String = result.stdout
+}

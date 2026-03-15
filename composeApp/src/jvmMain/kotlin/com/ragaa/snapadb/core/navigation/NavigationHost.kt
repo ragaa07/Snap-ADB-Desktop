@@ -18,6 +18,7 @@ import com.ragaa.snapadb.feature.notification.NotificationScreen
 import com.ragaa.snapadb.feature.performance.PerformanceScreen
 import com.ragaa.snapadb.feature.screenmirror.ScreenMirrorScreen
 import com.ragaa.snapadb.feature.appdata.AppDataScreen
+import com.ragaa.snapadb.feature.bugreporter.BugReporterScreen
 import com.ragaa.snapadb.feature.shell.LogcatOnlyScreen
 import com.ragaa.snapadb.feature.shell.TerminalOnlyScreen
 
@@ -44,6 +45,7 @@ fun NavigationHost(router: Router, modifier: Modifier = Modifier) {
             is Route.DeepLink -> DeepLinkScreen()
             is Route.Notification -> NotificationScreen()
             is Route.AppData -> AppDataScreen()
+            is Route.BugReporter -> BugReporterScreen()
         }
     }
 }

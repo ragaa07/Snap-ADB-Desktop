@@ -54,5 +54,6 @@ include(":feature:multidevice")
 include(":feature:deeplink")
 include(":feature:notification")
 include(":feature:appdata")
+include(":feature:bugreporter")
 
 include(":lib:mirror")

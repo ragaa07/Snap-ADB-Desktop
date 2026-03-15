@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.SettingsRemote
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.Summarize
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -68,6 +69,7 @@ private val toolsGroup = listOf(
 private val testGroup = listOf(
     NavItem(Route.DeepLink, Icons.Outlined.Link),
     NavItem(Route.Notification, Icons.Outlined.Notifications),
+    NavItem(Route.BugReporter, Icons.Outlined.Summarize),
 )
 
 private val allGroups = listOf(overviewGroup, manageGroup, toolsGroup, testGroup)

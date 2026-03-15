@@ -2,6 +2,8 @@ package com.ragaa.snapadb
 
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isMetaPressed
@@ -9,6 +11,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import org.jetbrains.skia.Image
 import com.ragaa.snapadb.core.di.appModules
 import com.ragaa.snapadb.core.navigation.Route
 import com.ragaa.snapadb.core.navigation.Router
@@ -41,12 +44,19 @@ fun main() {
 
         val router = getKoin().get<Router>()
 
+        val icon = BitmapPainter(
+            Image.makeFromEncoded(
+                Thread.currentThread().contextClassLoader!!.getResourceAsStream("icon_512.png")!!.readBytes()
+            ).toComposeImageBitmap()
+        )
+
         Window(
             onCloseRequest = {
                 WindowStateManager.saveWindowState(windowState)
                 exitApplication()
             },
-            title = "SnapADB",
+            title = "Snap ADB",
+            icon = icon,
             state = windowState,
             onKeyEvent = { event ->
                 if (event.type != KeyEventType.KeyDown) return@Window false

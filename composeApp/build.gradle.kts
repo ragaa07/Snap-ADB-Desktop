@@ -62,8 +62,24 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.ragaa.snapadb"
+            packageName = "Snap ADB"
             packageVersion = "1.0.0"
+            description = "A desktop ADB toolkit for Android developers"
+            vendor = "ragaa"
+
+            macOS {
+                iconFile.set(project.file("src/jvmMain/resources/icon.icns"))
+                bundleID = "com.ragaa.snapadb"
+            }
+            windows {
+                iconFile.set(project.file("src/jvmMain/resources/icon.ico"))
+                menuGroup = "Snap ADB"
+            }
+            linux {
+                iconFile.set(project.file("src/jvmMain/resources/icon_512.png"))
+                packageName = "snap-adb"
+                debMaintainer = "ragaa"
+            }
         }
     }
 }

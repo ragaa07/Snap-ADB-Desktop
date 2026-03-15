@@ -4,6 +4,7 @@ import com.ragaa.snapadb.core.adb.AdbClient
 import com.ragaa.snapadb.core.adb.AdbDeviceMonitor
 import com.ragaa.snapadb.core.adb.AdbPath
 import com.ragaa.snapadb.core.adb.AdbProcess
+import com.ragaa.snapadb.core.adb.LabelResolver
 import org.koin.dsl.module
 
 val adbModule = module {
@@ -11,4 +12,5 @@ val adbModule = module {
     single { AdbProcess(get()) }
     single { AdbClient(get(), get()) }
     single { AdbDeviceMonitor(get(), get()) }
+    single { LabelResolver(get(), get()) }
 }

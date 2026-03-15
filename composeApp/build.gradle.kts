@@ -31,6 +31,7 @@ kotlin {
             implementation(projects.feature.multidevice)
             implementation(projects.feature.deeplink)
             implementation(projects.feature.notification)
+            implementation(projects.feature.appdata)
 
             implementation(compose.runtime)
             implementation(compose.foundation)

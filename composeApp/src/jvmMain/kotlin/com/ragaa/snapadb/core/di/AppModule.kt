@@ -13,6 +13,7 @@ import com.ragaa.snapadb.feature.devicecontrols.di.deviceControlsModule
 import com.ragaa.snapadb.feature.deeplink.di.deepLinkModule
 import com.ragaa.snapadb.feature.notification.di.notificationModule
 import com.ragaa.snapadb.feature.screenmirror.di.screenMirrorModule
+import com.ragaa.snapadb.feature.appdata.di.appDataModule
 import com.ragaa.snapadb.feature.performance.di.performanceModule
 
 val appModules = listOf(
@@ -31,4 +32,5 @@ val appModules = listOf(
     notificationModule,
     screenMirrorModule,
     performanceModule,
+    appDataModule,
 )

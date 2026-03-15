@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.SettingsRemote
+import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.HorizontalDivider
@@ -53,6 +54,7 @@ private val overviewGroup = listOf(
 private val manageGroup = listOf(
     NavItem(Route.AppManager, Icons.Outlined.Apps),
     NavItem(Route.FileExplorer, Icons.Outlined.Folder),
+    NavItem(Route.AppData, Icons.Outlined.Storage),
     NavItem(Route.Shell, Icons.Outlined.Terminal),
     NavItem(Route.Logcat, Icons.Outlined.BugReport),
 )

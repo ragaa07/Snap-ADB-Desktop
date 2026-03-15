@@ -152,3 +152,109 @@ class ResetScreenSize : AdbCommand<String> {
     override fun args(): List<String> = listOf("shell", "wm size reset")
     override fun parse(result: ProcessResult): String = result.stdout.trim()
 }
+
+// === Developer Options Commands ===
+
+private val ANIMATION_SCALE_PATTERN = Regex("^(0(\\.0)?|0\\.5|1(\\.0)?|2(\\.0)?|5(\\.0)?|10(\\.0)?)$")
+
+class GetAnimationScale : AdbCommand<String> {
+    override fun args(): List<String> = listOf("shell", "settings get global window_animation_scale")
+    override fun parse(result: ProcessResult): String {
+        val value = result.stdout.trim()
+        return if (value == "null" || value.isBlank()) "1.0" else value
+    }
+}
+
+class SetAllAnimationScales(private val scale: String) : AdbCommand<String> {
+    init {
+        require(scale.matches(ANIMATION_SCALE_PATTERN)) { "Invalid animation scale: $scale" }
+    }
+
+    override fun args(): List<String> = listOf(
+        "shell",
+        "settings put global window_animation_scale $scale && " +
+            "settings put global transition_animation_scale $scale && " +
+            "settings put global animator_duration_scale $scale",
+    )
+
+    override fun parse(result: ProcessResult): String = result.stdout.trim()
+}
+
+class GetDarkMode : AdbCommand<Boolean?> {
+    override fun args(): List<String> = listOf("shell", "cmd uimode night")
+    override fun parse(result: ProcessResult): Boolean? {
+        val output = result.stdout.trim().lowercase()
+        return when {
+            "yes" in output -> true
+            "no" in output -> false
+            else -> null
+        }
+    }
+}
+
+class SetDarkMode(private val enabled: Boolean) : AdbCommand<String> {
+    override fun args(): List<String> =
+        listOf("shell", "cmd uimode night ${if (enabled) "yes" else "no"}")
+
+    override fun parse(result: ProcessResult): String = result.stdout.trim()
+}
+
+class GetDontKeepActivities : AdbCommand<Boolean> {
+    override fun args(): List<String> = listOf("shell", "settings get global always_finish_activities")
+    override fun parse(result: ProcessResult): Boolean = result.stdout.trim() == "1"
+}
+
+class SetDontKeepActivities(private val enabled: Boolean) : AdbCommand<String> {
+    override fun args(): List<String> =
+        listOf("shell", "settings put global always_finish_activities ${if (enabled) "1" else "0"}")
+
+    override fun parse(result: ProcessResult): String = result.stdout.trim()
+}
+
+class GetFontScale : AdbCommand<String> {
+    override fun args(): List<String> = listOf("shell", "settings get system font_scale")
+    override fun parse(result: ProcessResult): String {
+        val value = result.stdout.trim()
+        return if (value == "null" || value.isBlank()) "1.0" else value
+    }
+}
+
+class SetFontScale(private val scale: String) : AdbCommand<String> {
+    companion object {
+        val ALLOWED_SCALES = setOf("0.85", "1.0", "1.15", "1.3", "1.5", "2.0")
+    }
+
+    init {
+        require(scale in ALLOWED_SCALES) { "Invalid font scale: $scale" }
+    }
+
+    override fun args(): List<String> =
+        listOf("shell", "settings put system font_scale $scale")
+
+    override fun parse(result: ProcessResult): String = result.stdout.trim()
+}
+
+private val LOCALE_PATTERN = Regex("^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{1,8}){0,3}$")
+
+class GetLocale : AdbCommand<String> {
+    override fun args(): List<String> = listOf("shell", "settings get system system_locales")
+    override fun parse(result: ProcessResult): String {
+        val value = result.stdout.trim()
+        return if (value == "null" || value.isBlank()) "" else value
+    }
+}
+
+class SetLocale(private val locale: String) : AdbCommand<String> {
+    init {
+        require(locale.isNotBlank()) { "Locale must not be blank" }
+        require(locale.length <= 35) { "Locale too long" }
+        require(locale.matches(LOCALE_PATTERN)) { "Invalid locale format: $locale (expected e.g. en-US, ar-EG)" }
+    }
+
+    override fun args(): List<String> {
+        val escaped = locale.replace("'", "'\\''")
+        return listOf("shell", "settings put system system_locales '$escaped'")
+    }
+
+    override fun parse(result: ProcessResult): String = result.stdout.trim()
+}

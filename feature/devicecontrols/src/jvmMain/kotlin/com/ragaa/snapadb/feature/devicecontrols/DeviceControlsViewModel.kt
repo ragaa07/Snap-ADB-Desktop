@@ -5,6 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.ragaa.snapadb.common.DispatcherProvider
 import com.ragaa.snapadb.core.adb.AdbClient
 import com.ragaa.snapadb.core.adb.AdbDeviceMonitor
+import com.ragaa.snapadb.core.adb.command.GetAnimationScale
+import com.ragaa.snapadb.core.adb.command.GetDarkMode
+import com.ragaa.snapadb.core.adb.command.GetDontKeepActivities
+import com.ragaa.snapadb.core.adb.command.GetFontScale
+import com.ragaa.snapadb.core.adb.command.GetLocale
 import com.ragaa.snapadb.core.adb.command.GetScreenDensity
 import com.ragaa.snapadb.core.adb.command.GetScreenSize
 import com.ragaa.snapadb.core.adb.command.GetSetting
@@ -17,10 +22,16 @@ import com.ragaa.snapadb.core.adb.command.SendSwipe
 import com.ragaa.snapadb.core.adb.command.SendTap
 import com.ragaa.snapadb.core.adb.command.SendText
 import com.ragaa.snapadb.core.adb.command.SetAirplaneMode
+import com.ragaa.snapadb.core.adb.command.SetAllAnimationScales
+import com.ragaa.snapadb.core.adb.command.SetDarkMode
+import com.ragaa.snapadb.core.adb.command.SetDontKeepActivities
+import com.ragaa.snapadb.core.adb.command.SetFontScale
+import com.ragaa.snapadb.core.adb.command.SetLocale
 import com.ragaa.snapadb.core.adb.command.SetMobileDataEnabled
 import com.ragaa.snapadb.core.adb.command.SetScreenDensity
 import com.ragaa.snapadb.core.adb.command.SetScreenSize
 import com.ragaa.snapadb.core.adb.command.SetWifiEnabled
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -72,6 +83,11 @@ class DeviceControlsViewModel(
             is DeviceControlsIntent.ResetScreenSize -> resetScreenSize()
             is DeviceControlsIntent.GetSettingValue -> getSettingValue(intent.namespace, intent.key)
             is DeviceControlsIntent.PutSettingValue -> putSettingValue(intent.namespace, intent.key, intent.value)
+            is DeviceControlsIntent.SetAnimationSpeed -> setAnimationSpeed(intent.scale)
+            is DeviceControlsIntent.ToggleDarkMode -> toggleDarkMode(intent.enabled)
+            is DeviceControlsIntent.ToggleDontKeepActivities -> toggleDontKeepActivities(intent.enabled)
+            is DeviceControlsIntent.SetFontScale -> setFontScale(intent.scale)
+            is DeviceControlsIntent.SetLocale -> setLocale(intent.locale)
             is DeviceControlsIntent.RefreshDisplay -> currentSerial?.let { loadDisplayInfo(it) }
             is DeviceControlsIntent.DismissResult -> _actionResult.value = null
         }
@@ -81,11 +97,22 @@ class DeviceControlsViewModel(
         viewModelScope.launch {
             _state.value = DeviceControlsState.Loading
             try {
-                val density = withContext(dispatchers.io) { adbClient.execute(GetScreenDensity(), serial) }
-                val size = withContext(dispatchers.io) { adbClient.execute(GetScreenSize(), serial) }
+                val density = async(dispatchers.io) { adbClient.execute(GetScreenDensity(), serial) }
+                val size = async(dispatchers.io) { adbClient.execute(GetScreenSize(), serial) }
+                val animScale = async(dispatchers.io) { adbClient.execute(GetAnimationScale(), serial) }
+                val darkMode = async(dispatchers.io) { adbClient.execute(GetDarkMode(), serial) }
+                val dontKeep = async(dispatchers.io) { adbClient.execute(GetDontKeepActivities(), serial) }
+                val fontScale = async(dispatchers.io) { adbClient.execute(GetFontScale(), serial) }
+                val locale = async(dispatchers.io) { adbClient.execute(GetLocale(), serial) }
+
                 _state.value = DeviceControlsState.Ready(
-                    currentDensity = density.getOrNull() ?: "Unknown",
-                    currentSize = size.getOrNull() ?: "Unknown",
+                    currentDensity = density.await().getOrNull() ?: "Unknown",
+                    currentSize = size.await().getOrNull() ?: "Unknown",
+                    animationScale = animScale.await().getOrNull() ?: "1.0",
+                    darkMode = darkMode.await().getOrNull(),
+                    dontKeepActivities = dontKeep.await().getOrNull() ?: false,
+                    fontScale = fontScale.await().getOrNull() ?: "1.0",
+                    locale = locale.await().getOrNull() ?: "",
                 )
             } catch (e: Exception) {
                 _state.value = DeviceControlsState.Error(e.message ?: "Failed to load device info")
@@ -187,6 +214,31 @@ class DeviceControlsViewModel(
         executeAction("Set $namespace/$key") { serial ->
             adbClient.execute(PutSetting(namespace, key, value), serial)
         }
+
+    private fun setAnimationSpeed(scale: String) =
+        executeAction("Animation speed set to ${scale}x", refreshDisplay = true) { serial ->
+            adbClient.execute(SetAllAnimationScales(scale), serial)
+        }
+
+    private fun toggleDarkMode(enabled: Boolean) =
+        executeAction("Dark mode ${if (enabled) "enabled" else "disabled"}", refreshDisplay = true) { serial ->
+            adbClient.execute(SetDarkMode(enabled), serial)
+        }
+
+    private fun toggleDontKeepActivities(enabled: Boolean) =
+        executeAction("Don't Keep Activities ${if (enabled) "enabled" else "disabled"}", refreshDisplay = true) { serial ->
+            adbClient.execute(SetDontKeepActivities(enabled), serial)
+        }
+
+    private fun setFontScale(scale: String) =
+        executeAction("Font scale set to ${scale}x", refreshDisplay = true) { serial ->
+            adbClient.execute(SetFontScale(scale), serial)
+        }
+
+    private fun setLocale(locale: String) =
+        executeAction("Locale set to $locale", refreshDisplay = true) { serial ->
+            adbClient.execute(SetLocale(locale), serial)
+        }
 }
 
 sealed class DeviceControlsState {
@@ -196,6 +248,11 @@ sealed class DeviceControlsState {
     data class Ready(
         val currentDensity: String,
         val currentSize: String,
+        val animationScale: String = "1.0",
+        val darkMode: Boolean? = null,
+        val dontKeepActivities: Boolean = false,
+        val fontScale: String = "1.0",
+        val locale: String = "",
     ) : DeviceControlsState()
 }
 
@@ -214,6 +271,11 @@ sealed class DeviceControlsIntent {
     data object ResetScreenSize : DeviceControlsIntent()
     data class GetSettingValue(val namespace: String, val key: String) : DeviceControlsIntent()
     data class PutSettingValue(val namespace: String, val key: String, val value: String) : DeviceControlsIntent()
+    data class SetAnimationSpeed(val scale: String) : DeviceControlsIntent()
+    data class ToggleDarkMode(val enabled: Boolean) : DeviceControlsIntent()
+    data class ToggleDontKeepActivities(val enabled: Boolean) : DeviceControlsIntent()
+    data class SetFontScale(val scale: String) : DeviceControlsIntent()
+    data class SetLocale(val locale: String) : DeviceControlsIntent()
     data object RefreshDisplay : DeviceControlsIntent()
     data object DismissResult : DeviceControlsIntent()
 }

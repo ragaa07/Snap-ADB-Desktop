@@ -19,10 +19,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AirplanemodeActive
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.LightMode
 import com.ragaa.snapadb.core.ui.components.ErrorState
 import com.ragaa.snapadb.core.ui.components.LoadingState
 import com.ragaa.snapadb.core.ui.components.NoDeviceState
 import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.NetworkWifi
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Refresh
@@ -38,6 +42,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -108,6 +114,7 @@ private fun ReadyContent(
 
             InputSection(onIntent)
             DisplaySection(state, onIntent)
+            DeveloperOptionsSection(state, onIntent)
             NetworkSection(onIntent)
             SystemSection(onIntent)
             SettingsSection(onIntent)
@@ -305,6 +312,179 @@ private fun DisplaySection(state: DeviceControlsState.Ready, onIntent: (DeviceCo
             OutlinedButton(onClick = { onIntent(DeviceControlsIntent.ResetScreenSize) }) { Text("Reset") }
         }
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun DeveloperOptionsSection(
+    state: DeviceControlsState.Ready,
+    onIntent: (DeviceControlsIntent) -> Unit,
+) {
+    val animationScales = listOf("0" to "Off", "0.5" to "0.5x", "1.0" to "1x", "2.0" to "2x", "5.0" to "5x", "10.0" to "10x")
+    val fontScales = listOf("0.85" to "0.85x", "1.0" to "1.0x", "1.15" to "1.15x", "1.3" to "1.3x", "1.5" to "1.5x", "2.0" to "2.0x")
+    val commonLocales = listOf(
+        "" to "Select locale...",
+        "en-US" to "English (US)",
+        "en-GB" to "English (UK)",
+        "ar-EG" to "Arabic (Egypt)",
+        "ar-SA" to "Arabic (Saudi)",
+        "fr-FR" to "French",
+        "de-DE" to "German",
+        "es-ES" to "Spanish",
+        "ja-JP" to "Japanese",
+        "ko-KR" to "Korean",
+        "zh-CN" to "Chinese (Simplified)",
+        "zh-TW" to "Chinese (Traditional)",
+        "pt-BR" to "Portuguese (Brazil)",
+        "hi-IN" to "Hindi",
+        "tr-TR" to "Turkish",
+        "ru-RU" to "Russian",
+    )
+    var localeExpanded by remember { mutableStateOf(false) }
+    var customLocale by remember { mutableStateOf("") }
+
+    SectionCard("Developer Options", Icons.Outlined.Code) {
+        // Animation Speed
+        Text("Animation Speed", style = MaterialTheme.typography.titleSmall)
+        Spacer(modifier = Modifier.height(8.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            animationScales.forEach { (value, label) ->
+                val isSelected = normalizeScale(state.animationScale) == normalizeScale(value)
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onIntent(DeviceControlsIntent.SetAnimationSpeed(value)) },
+                    label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Dark Mode
+        Text("Dark Mode", style = MaterialTheme.typography.titleSmall)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = state.darkMode == false,
+                onClick = { onIntent(DeviceControlsIntent.ToggleDarkMode(false)) },
+                label = { Text("Light") },
+                leadingIcon = { Icon(Icons.Outlined.LightMode, contentDescription = null, modifier = Modifier.size(16.dp)) },
+            )
+            FilterChip(
+                selected = state.darkMode == true,
+                onClick = { onIntent(DeviceControlsIntent.ToggleDarkMode(true)) },
+                label = { Text("Dark") },
+                leadingIcon = { Icon(Icons.Outlined.DarkMode, contentDescription = null, modifier = Modifier.size(16.dp)) },
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Don't Keep Activities
+        Text("Don't Keep Activities", style = MaterialTheme.typography.titleSmall)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = !state.dontKeepActivities,
+                onClick = { onIntent(DeviceControlsIntent.ToggleDontKeepActivities(false)) },
+                label = { Text("Disabled") },
+            )
+            FilterChip(
+                selected = state.dontKeepActivities,
+                onClick = { onIntent(DeviceControlsIntent.ToggleDontKeepActivities(true)) },
+                label = { Text("Enabled") },
+                colors = if (state.dontKeepActivities) FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.errorContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onErrorContainer,
+                ) else FilterChipDefaults.filterChipColors(),
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Font Scale
+        Text("Font Scale", style = MaterialTheme.typography.titleSmall)
+        Spacer(modifier = Modifier.height(8.dp))
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            fontScales.forEach { (value, label) ->
+                val isSelected = normalizeScale(state.fontScale) == normalizeScale(value)
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onIntent(DeviceControlsIntent.SetFontScale(value)) },
+                    label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Locale
+        Text("Locale", style = MaterialTheme.typography.titleSmall)
+        if (state.locale.isNotBlank()) {
+            Text(
+                "Current: ${state.locale}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ExposedDropdownMenuBox(
+                expanded = localeExpanded,
+                onExpandedChange = { localeExpanded = it },
+                modifier = Modifier.weight(1f),
+            ) {
+                OutlinedTextField(
+                    value = commonLocales.find { it.first == customLocale }?.second ?: customLocale.ifBlank { "Select locale..." },
+                    onValueChange = {},
+                    readOnly = true,
+                    modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(localeExpanded) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    leadingIcon = { Icon(Icons.Outlined.Language, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                )
+                ExposedDropdownMenu(expanded = localeExpanded, onDismissRequest = { localeExpanded = false }) {
+                    commonLocales.drop(1).forEach { (code, label) ->
+                        DropdownMenuItem(
+                            text = { Text("$label ($code)") },
+                            onClick = {
+                                customLocale = code
+                                localeExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = customLocale,
+                onValueChange = { customLocale = it },
+                modifier = Modifier.width(120.dp),
+                placeholder = { Text("e.g. en-US") },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+            )
+            Button(
+                onClick = {
+                    if (customLocale.isNotBlank()) {
+                        onIntent(DeviceControlsIntent.SetLocale(customLocale))
+                    }
+                },
+                enabled = customLocale.isNotBlank(),
+            ) { Text("Set") }
+        }
+    }
+}
+
+private fun normalizeScale(value: String): String {
+    val f = value.toFloatOrNull() ?: return value
+    return if (f == f.toLong().toFloat()) f.toLong().toString() else f.toString()
 }
 
 @Composable

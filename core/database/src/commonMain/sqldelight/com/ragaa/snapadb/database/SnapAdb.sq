@@ -120,3 +120,18 @@ UPDATE notification_template SET name = ?, payload_json = ? WHERE id = ?;
 
 deleteTemplate:
 DELETE FROM notification_template WHERE id = ?;
+
+-- App Label cache
+CREATE TABLE app_label (
+    package_name TEXT NOT NULL PRIMARY KEY,
+    label TEXT NOT NULL
+);
+
+getAllLabels:
+SELECT * FROM app_label;
+
+getLabel:
+SELECT label FROM app_label WHERE package_name = ?;
+
+upsertLabel:
+INSERT OR REPLACE INTO app_label (package_name, label) VALUES (?, ?);

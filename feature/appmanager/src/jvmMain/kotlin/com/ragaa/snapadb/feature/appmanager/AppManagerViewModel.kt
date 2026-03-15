@@ -8,7 +8,6 @@ import com.ragaa.snapadb.core.adb.AdbDeviceMonitor
 import com.ragaa.snapadb.core.adb.command.ClearAppData
 import com.ragaa.snapadb.core.adb.command.ForceStopApp
 import com.ragaa.snapadb.core.adb.command.GetAppPermissions
-import com.ragaa.snapadb.core.adb.LabelResolver
 import com.ragaa.snapadb.core.adb.command.GetPackageInfo
 import com.ragaa.snapadb.core.adb.command.GrantPermission
 import com.ragaa.snapadb.core.adb.command.InstallApp
@@ -18,23 +17,20 @@ import com.ragaa.snapadb.core.adb.command.RevokePermission
 import com.ragaa.snapadb.core.adb.command.UninstallApp
 import com.ragaa.snapadb.core.adb.model.AppInfo
 import com.ragaa.snapadb.core.adb.model.AppPermission
-import com.ragaa.snapadb.core.adb.model.AppSort
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import com.ragaa.snapadb.core.database.AppLabelRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 class AppManagerViewModel(
     private val adbClient: AdbClient,
     private val deviceMonitor: AdbDeviceMonitor,
     private val dispatchers: DispatcherProvider,
-    private val labelResolver: LabelResolver,
+    private val appLabelRepository: AppLabelRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<AppManagerState>(AppManagerState.NoDevice)
@@ -42,9 +38,6 @@ class AppManagerViewModel(
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
-
-    private val _sort = MutableStateFlow(AppSort.NAME_ASC)
-    val sort: StateFlow<AppSort> = _sort.asStateFlow()
 
     private val _actionResult = MutableStateFlow<ActionResult?>(null)
     val actionResult: StateFlow<ActionResult?> = _actionResult.asStateFlow()
@@ -58,21 +51,21 @@ class AppManagerViewModel(
     private val _permissions = MutableStateFlow<List<AppPermission>>(emptyList())
     val permissions: StateFlow<List<AppPermission>> = _permissions.asStateFlow()
 
-    private val mutex = Mutex()
-    private var allApps = emptyList<AppInfo>()
-    private var currentSerial: String? = null
+    // Raw apps from device (no labels) — written only by loadApps
+    private val _rawApps = MutableStateFlow<List<AppInfo>>(emptyList())
+    private val _currentSerial = MutableStateFlow<String?>(null)
 
     init {
+        // React to device changes
         viewModelScope.launch {
             deviceMonitor.selectedDevice.collectLatest { device ->
-                mutex.withLock {
-                    allApps = emptyList()
-                    currentSerial = device?.serial
-                    _actionResult.value = null
-                    _selectionMode.value = false
-                    _selectedPackages.value = emptySet()
-                    _permissions.value = emptyList()
-                }
+                _rawApps.value = emptyList()
+                _currentSerial.value = device?.serial
+                _actionResult.value = null
+                _selectionMode.value = false
+                _selectedPackages.value = emptySet()
+                _permissions.value = emptyList()
+
                 if (device == null) {
                     _state.value = AppManagerState.NoDevice
                 } else {
@@ -80,24 +73,75 @@ class AppManagerViewModel(
                 }
             }
         }
+
+        // Single reactive pipeline: rawApps + DB labels + searchQuery → UI state
+        // Fires whenever ANY of the three sources change
+        viewModelScope.launch {
+            combine(
+                _rawApps,
+                appLabelRepository.observeAllLabels(),
+                _searchQuery,
+            ) { apps, labelsMap, query ->
+                Triple(apps, labelsMap, query)
+            }.collect { (apps, labelsMap, query) ->
+                if (apps.isEmpty()) return@collect
+
+                // 1. Apply labels from DB (single source of truth)
+                val labeled = if (labelsMap.isNotEmpty()) {
+                    apps.map { app ->
+                        labelsMap[app.packageName]?.let { label -> app.copy(appLabel = label) } ?: app
+                    }
+                } else apps
+
+                // 2. Apply search filter
+                val queryLower = query.lowercase()
+                val filtered = if (queryLower.isEmpty()) labeled
+                else labeled.filter { app ->
+                    app.packageName.lowercase().contains(queryLower) ||
+                        app.appLabel.lowercase().contains(queryLower)
+                }
+
+                // 3. Sort and emit
+                val sorted = filtered.sortedBy { it.displayName.lowercase() }
+                val selectedDetails = (_state.value as? AppManagerState.Loaded)?.selectedAppDetails
+
+                _state.value = AppManagerState.Loaded(
+                    apps = sorted,
+                    totalCount = apps.size,
+                    selectedAppDetails = selectedDetails,
+                )
+            }
+        }
     }
 
     fun onIntent(intent: AppManagerIntent) {
         when (intent) {
             is AppManagerIntent.Refresh -> refresh()
-            is AppManagerIntent.UpdateSearch -> {
-                _searchQuery.value = intent.query
-                applyFilters()
+            is AppManagerIntent.UpdateSearch -> _searchQuery.value = intent.query
+            is AppManagerIntent.Uninstall -> executeAction(intent.packageName) { serial, pkg ->
+                adbClient.execute(UninstallApp(pkg), serial)
+                    .onSuccess {
+                        _actionResult.value = ActionResult.Success("Uninstalled $pkg")
+                        loadApps(serial)
+                    }
+                    .onFailure { e -> _actionResult.value = ActionResult.Failure("Failed to uninstall: ${e.message}") }
             }
-            is AppManagerIntent.UpdateSort -> {
-                _sort.value = intent.sort
-                applyFilters()
+            is AppManagerIntent.ForceStop -> executeAction(intent.packageName) { serial, pkg ->
+                adbClient.execute(ForceStopApp(pkg), serial)
+                    .onSuccess { _actionResult.value = ActionResult.Success("Force stopped $pkg") }
+                    .onFailure { e -> _actionResult.value = ActionResult.Failure("Failed to force stop: ${e.message}") }
             }
-            is AppManagerIntent.Uninstall -> uninstallApp(intent.packageName)
-            is AppManagerIntent.ForceStop -> forceStopApp(intent.packageName)
-            is AppManagerIntent.ClearData -> clearAppData(intent.packageName)
+            is AppManagerIntent.ClearData -> executeAction(intent.packageName) { serial, pkg ->
+                adbClient.execute(ClearAppData(pkg), serial)
+                    .onSuccess { _actionResult.value = ActionResult.Success("Cleared data for $pkg") }
+                    .onFailure { e -> _actionResult.value = ActionResult.Failure("Failed to clear data: ${e.message}") }
+            }
             is AppManagerIntent.Install -> installApp(intent.localApkPath, intent.allowDowngrade)
-            is AppManagerIntent.Launch -> launchApp(intent.packageName)
+            is AppManagerIntent.Launch -> executeAction(intent.packageName) { serial, pkg ->
+                adbClient.execute(LaunchApp(pkg), serial)
+                    .onSuccess { _actionResult.value = ActionResult.Success("Launched $pkg") }
+                    .onFailure { e -> _actionResult.value = ActionResult.Failure("Failed to launch: ${e.message}") }
+            }
             is AppManagerIntent.GetDetails -> getAppDetails(intent.packageName)
             is AppManagerIntent.DismissResult -> _actionResult.value = null
             is AppManagerIntent.DismissDetails -> {
@@ -120,140 +164,43 @@ class AppManagerViewModel(
         }
     }
 
+    // --- Core ---
+
     private fun refresh() {
-        val serial = currentSerial ?: return
+        val serial = _currentSerial.value ?: return
         viewModelScope.launch { loadApps(serial) }
     }
 
     private suspend fun loadApps(serial: String) {
         _state.value = AppManagerState.Loading
+        // Reset to empty first so StateFlow always emits on the next set
+        _rawApps.value = emptyList()
         withContext(dispatchers.io) {
             adbClient.execute(ListPackages(), serial)
         }
             .onSuccess { apps ->
-                mutex.withLock {
-                    allApps = apps.sortedBy { it.packageName.lowercase() }
-                }
-                applyFilters()
-                fetchLabelsInBackground(serial)
+                _rawApps.value = apps
+                // combine pipeline handles labels + filters + state transition
             }
             .onFailure { e ->
                 _state.value = AppManagerState.Error(e.message ?: "Failed to load apps")
             }
     }
 
-    private fun fetchLabelsInBackground(serial: String) {
-        if (!labelResolver.isAvailable()) return
+    // --- Single app actions ---
 
+    private fun executeAction(
+        packageName: String,
+        block: suspend (serial: String, pkg: String) -> Unit,
+    ) {
+        val serial = _currentSerial.value ?: return
         viewModelScope.launch {
-            val appsSnapshot = mutex.withLock { allApps.toList() }
-            // Only fetch labels for apps with APK paths, prioritize user apps
-            val appsToResolve = appsSnapshot
-                .filter { it.apkPath.isNotEmpty() && it.appLabel.isEmpty() }
-                .sortedBy { it.isSystemApp } // user apps first
-
-            appsToResolve.chunked(10).forEach { batch ->
-                val results = withContext(dispatchers.io) {
-                    batch.map { app ->
-                        async {
-                            val label = labelResolver.resolveLabel(app.apkPath, serial)
-                            app.packageName to label
-                        }
-                    }.awaitAll()
-                }
-
-                val labelMap = results.filter { it.second.isNotEmpty() }.toMap()
-                if (labelMap.isNotEmpty()) {
-                    mutex.withLock {
-                        allApps = allApps.map { app ->
-                            labelMap[app.packageName]?.let { label -> app.copy(appLabel = label) } ?: app
-                        }
-                    }
-                    applyFilters()
-                }
-            }
-        }
-    }
-
-    private fun applyFilters() {
-        val query = _searchQuery.value.lowercase()
-        val sortType = _sort.value
-
-        val filtered = if (query.isEmpty()) {
-            allApps
-        } else {
-            allApps.filter { app ->
-                app.packageName.lowercase().contains(query) ||
-                        app.appLabel.lowercase().contains(query)
-            }
-        }
-
-        val sorted = when (sortType) {
-            AppSort.NAME_ASC -> filtered.sortedBy { it.displayName.lowercase() }
-            AppSort.NAME_DESC -> filtered.sortedByDescending { it.displayName.lowercase() }
-            AppSort.RECENTLY_INSTALLED -> filtered.sortedByDescending { it.firstInstallTime }
-        }
-
-        val selectedDetails = (_state.value as? AppManagerState.Loaded)?.selectedAppDetails
-
-        _state.value = AppManagerState.Loaded(
-            apps = sorted,
-            totalCount = allApps.size,
-            selectedAppDetails = selectedDetails,
-        )
-    }
-
-    private fun launchApp(packageName: String) {
-        val serial = currentSerial ?: return
-        viewModelScope.launch {
-            withContext(dispatchers.io) {
-                adbClient.execute(LaunchApp(packageName), serial)
-            }
-                .onSuccess { _actionResult.value = ActionResult.Success("Launched $packageName") }
-                .onFailure { e -> _actionResult.value = ActionResult.Failure("Failed to launch: ${e.message}") }
-        }
-    }
-
-    private fun uninstallApp(packageName: String) {
-        val serial = currentSerial ?: return
-        viewModelScope.launch {
-            withContext(dispatchers.io) {
-                adbClient.execute(UninstallApp(packageName), serial)
-            }
-                .onSuccess {
-                    _actionResult.value = ActionResult.Success("Uninstalled $packageName")
-                    loadApps(serial)
-                }
-                .onFailure { e ->
-                    _actionResult.value = ActionResult.Failure("Failed to uninstall: ${e.message}")
-                }
-        }
-    }
-
-    private fun forceStopApp(packageName: String) {
-        val serial = currentSerial ?: return
-        viewModelScope.launch {
-            withContext(dispatchers.io) {
-                adbClient.execute(ForceStopApp(packageName), serial)
-            }
-                .onSuccess { _actionResult.value = ActionResult.Success("Force stopped $packageName") }
-                .onFailure { e -> _actionResult.value = ActionResult.Failure("Failed to force stop: ${e.message}") }
-        }
-    }
-
-    private fun clearAppData(packageName: String) {
-        val serial = currentSerial ?: return
-        viewModelScope.launch {
-            withContext(dispatchers.io) {
-                adbClient.execute(ClearAppData(packageName), serial)
-            }
-                .onSuccess { _actionResult.value = ActionResult.Success("Cleared data for $packageName") }
-                .onFailure { e -> _actionResult.value = ActionResult.Failure("Failed to clear data: ${e.message}") }
+            withContext(dispatchers.io) { block(serial, packageName) }
         }
     }
 
     private fun installApp(localApkPath: String, allowDowngrade: Boolean) {
-        val serial = currentSerial ?: return
+        val serial = _currentSerial.value ?: return
         viewModelScope.launch {
             _actionResult.value = ActionResult.Success("Installing...")
             withContext(dispatchers.io) {
@@ -270,7 +217,7 @@ class AppManagerViewModel(
     }
 
     private fun getAppDetails(packageName: String) {
-        val serial = currentSerial ?: return
+        val serial = _currentSerial.value ?: return
         viewModelScope.launch {
             withContext(dispatchers.io) {
                 adbClient.execute(GetPackageInfo(packageName), serial)
@@ -285,21 +232,17 @@ class AppManagerViewModel(
         }
     }
 
+    // --- Selection & batch ---
+
     private fun toggleSelectionMode() {
         val newMode = !_selectionMode.value
         _selectionMode.value = newMode
-        if (!newMode) {
-            _selectedPackages.value = emptySet()
-        }
+        if (!newMode) _selectedPackages.value = emptySet()
     }
 
     private fun toggleSelection(packageName: String) {
         val current = _selectedPackages.value
-        _selectedPackages.value = if (packageName in current) {
-            current - packageName
-        } else {
-            current + packageName
-        }
+        _selectedPackages.value = if (packageName in current) current - packageName else current + packageName
     }
 
     private fun selectAllVisible() {
@@ -307,64 +250,52 @@ class AppManagerViewModel(
         _selectedPackages.value = loaded.apps.map { it.packageName }.toSet()
     }
 
-    private fun batchUninstall() {
-        val serial = currentSerial ?: return
+    private fun executeBatch(
+        action: suspend (serial: String, pkg: String) -> Result<*>,
+        successVerb: String,
+        reloadAfter: Boolean = false,
+    ) {
+        val serial = _currentSerial.value ?: return
         val packages = _selectedPackages.value.toList()
         if (packages.isEmpty()) return
+
         viewModelScope.launch {
             var successCount = 0
             var failCount = 0
             for (pkg in packages) {
-                withContext(dispatchers.io) {
-                    adbClient.execute(UninstallApp(pkg), serial)
-                }
+                withContext(dispatchers.io) { action(serial, pkg) }
                     .onSuccess { successCount++ }
                     .onFailure { failCount++ }
             }
             _selectionMode.value = false
             _selectedPackages.value = emptySet()
-            _actionResult.value = ActionResult.Success("Uninstalled $successCount apps" +
-                    if (failCount > 0) ", $failCount failed" else "")
-            loadApps(serial)
+            _actionResult.value = ActionResult.Success(
+                "$successVerb $successCount apps" + if (failCount > 0) ", $failCount failed" else ""
+            )
+            if (reloadAfter) loadApps(serial)
         }
     }
 
-    private fun batchForceStop() {
-        val serial = currentSerial ?: return
-        val packages = _selectedPackages.value.toList()
-        if (packages.isEmpty()) return
-        viewModelScope.launch {
-            var successCount = 0
-            for (pkg in packages) {
-                withContext(dispatchers.io) {
-                    adbClient.execute(ForceStopApp(pkg), serial)
-                }.onSuccess { successCount++ }
-            }
-            _selectionMode.value = false
-            _selectedPackages.value = emptySet()
-            _actionResult.value = ActionResult.Success("Force stopped $successCount apps")
-        }
-    }
+    private fun batchUninstall() = executeBatch(
+        action = { serial, pkg -> adbClient.execute(UninstallApp(pkg), serial) },
+        successVerb = "Uninstalled",
+        reloadAfter = true,
+    )
 
-    private fun batchClearData() {
-        val serial = currentSerial ?: return
-        val packages = _selectedPackages.value.toList()
-        if (packages.isEmpty()) return
-        viewModelScope.launch {
-            var successCount = 0
-            for (pkg in packages) {
-                withContext(dispatchers.io) {
-                    adbClient.execute(ClearAppData(pkg), serial)
-                }.onSuccess { successCount++ }
-            }
-            _selectionMode.value = false
-            _selectedPackages.value = emptySet()
-            _actionResult.value = ActionResult.Success("Cleared data for $successCount apps")
-        }
-    }
+    private fun batchForceStop() = executeBatch(
+        action = { serial, pkg -> adbClient.execute(ForceStopApp(pkg), serial) },
+        successVerb = "Force stopped",
+    )
+
+    private fun batchClearData() = executeBatch(
+        action = { serial, pkg -> adbClient.execute(ClearAppData(pkg), serial) },
+        successVerb = "Cleared data for",
+    )
+
+    // --- Permissions ---
 
     private fun loadPermissions(packageName: String) {
-        val serial = currentSerial ?: return
+        val serial = _currentSerial.value ?: return
         viewModelScope.launch {
             withContext(dispatchers.io) {
                 adbClient.execute(GetAppPermissions(packageName), serial)
@@ -375,7 +306,7 @@ class AppManagerViewModel(
     }
 
     private fun togglePermission(packageName: String, permission: AppPermission) {
-        val serial = currentSerial ?: return
+        val serial = _currentSerial.value ?: return
         viewModelScope.launch {
             val command = if (permission.isGranted) {
                 RevokePermission(packageName, permission.name)
@@ -412,7 +343,6 @@ sealed class AppManagerState {
 sealed class AppManagerIntent {
     data object Refresh : AppManagerIntent()
     data class UpdateSearch(val query: String) : AppManagerIntent()
-    data class UpdateSort(val sort: AppSort) : AppManagerIntent()
     data class Uninstall(val packageName: String) : AppManagerIntent()
     data class ForceStop(val packageName: String) : AppManagerIntent()
     data class ClearData(val packageName: String) : AppManagerIntent()

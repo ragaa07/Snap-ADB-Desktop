@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -22,8 +23,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.ArrowDownward
-import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material.icons.outlined.Close
@@ -34,7 +33,6 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.InstallMobile
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Stop
@@ -43,8 +41,6 @@ import com.ragaa.snapadb.core.ui.components.LoadingState
 import com.ragaa.snapadb.core.ui.components.NoDeviceState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -70,7 +66,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ragaa.snapadb.core.adb.model.AppInfo
 import com.ragaa.snapadb.core.adb.model.AppPermission
-import com.ragaa.snapadb.core.adb.model.AppSort
 import org.koin.compose.viewmodel.koinViewModel
 import kotlinx.coroutines.delay
 import javax.swing.JFileChooser
@@ -81,7 +76,6 @@ import javax.swing.filechooser.FileNameExtensionFilter
 fun AppManagerScreen(viewModel: AppManagerViewModel = koinViewModel()) {
     val state by viewModel.state.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val sort by viewModel.sort.collectAsState()
     val actionResult by viewModel.actionResult.collectAsState()
     val selectionMode by viewModel.selectionMode.collectAsState()
     val selectedPackages by viewModel.selectedPackages.collectAsState()
@@ -94,7 +88,6 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = koinViewModel()) {
         is AppManagerState.Loaded -> LoadedContent(
             state = s,
             searchQuery = searchQuery,
-            sort = sort,
             actionResult = actionResult,
             selectionMode = selectionMode,
             selectedPackages = selectedPackages,
@@ -108,7 +101,6 @@ fun AppManagerScreen(viewModel: AppManagerViewModel = koinViewModel()) {
 private fun LoadedContent(
     state: AppManagerState.Loaded,
     searchQuery: String,
-    sort: AppSort,
     actionResult: ActionResult?,
     selectionMode: Boolean,
     selectedPackages: Set<String>,
@@ -185,18 +177,10 @@ private fun LoadedContent(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Sort
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SortDropdown(sort, onIntent)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-
             // App list
+            val listState = rememberLazyListState()
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
@@ -246,41 +230,6 @@ private fun LoadedContent(
                 permissions = permissions,
                 onIntent = onIntent,
                 onDismiss = { onIntent(AppManagerIntent.DismissDetails) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun SortDropdown(sort: AppSort, onIntent: (AppManagerIntent) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Box {
-        IconButton(onClick = { expanded = true }) {
-            Icon(
-                when (sort) {
-                    AppSort.NAME_ASC -> Icons.Outlined.ArrowUpward
-                    AppSort.NAME_DESC -> Icons.Outlined.ArrowDownward
-                    AppSort.RECENTLY_INSTALLED -> Icons.Outlined.Schedule
-                },
-                contentDescription = "Sort",
-            )
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text("Name (A-Z)") },
-                onClick = { onIntent(AppManagerIntent.UpdateSort(AppSort.NAME_ASC)); expanded = false },
-                leadingIcon = { Icon(Icons.Outlined.ArrowUpward, contentDescription = null, modifier = Modifier.size(18.dp)) },
-            )
-            DropdownMenuItem(
-                text = { Text("Name (Z-A)") },
-                onClick = { onIntent(AppManagerIntent.UpdateSort(AppSort.NAME_DESC)); expanded = false },
-                leadingIcon = { Icon(Icons.Outlined.ArrowDownward, contentDescription = null, modifier = Modifier.size(18.dp)) },
-            )
-            DropdownMenuItem(
-                text = { Text("Recently Installed") },
-                onClick = { onIntent(AppManagerIntent.UpdateSort(AppSort.RECENTLY_INSTALLED)); expanded = false },
-                leadingIcon = { Icon(Icons.Outlined.Schedule, contentDescription = null, modifier = Modifier.size(18.dp)) },
             )
         }
     }

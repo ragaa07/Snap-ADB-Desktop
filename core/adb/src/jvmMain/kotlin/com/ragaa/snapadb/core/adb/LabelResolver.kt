@@ -2,86 +2,151 @@ package com.ragaa.snapadb.core.adb
 
 import com.ragaa.snapadb.common.DispatcherProvider
 import kotlinx.coroutines.withContext
+import net.dongliu.apk.parser.ApkFile
 import java.io.File
+import java.io.FileOutputStream
+import java.util.Locale
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 class LabelResolver(
     private val adbPath: AdbPath,
     private val dispatchers: DispatcherProvider,
 ) {
 
-    private val aapt2Path: String? by lazy { findAapt2() }
+    /**
+     * Resolves labels in batches, calling [onBatchResolved] after each batch
+     * so the UI can update progressively without position shifts.
+     *
+     * Pipeline per batch:
+     * 1. Push+execute shell script to extract AndroidManifest.xml + resources.arsc
+     * 2. Compress with tar+gzip on device, pull single file
+     * 3. Extract locally, create mini APKs, parse with apk-parser library (no aapt2 needed)
+     */
+    suspend fun resolveLabels(
+        apps: List<Pair<String, String>>,
+        deviceSerial: String,
+        batchSize: Int = 15,
+        onBatchResolved: suspend (Map<String, String>) -> Unit = {},
+    ): Map<String, String> {
+        val adb = adbPath.resolve() ?: return emptyMap()
+        if (apps.isEmpty()) return emptyMap()
 
-    suspend fun resolveLabel(apkDevicePath: String, deviceSerial: String): String {
-        val aapt2 = aapt2Path ?: return ""
-        val adb = adbPath.resolve() ?: return ""
+        val allLabels = mutableMapOf<String, String>()
 
         return withContext(dispatchers.io) {
-            val tempFile = File.createTempFile("snapadb_label_", ".apk")
-            try {
-                val pullProcess = ProcessBuilder(adb, "-s", deviceSerial, "pull", apkDevicePath, tempFile.absolutePath)
-                    .redirectErrorStream(true)
-                    .start()
-                val pullExit = pullProcess.waitFor()
-                if (pullExit != 0) return@withContext ""
-
-                val dumpProcess = ProcessBuilder(aapt2, "dump", "badging", tempFile.absolutePath)
-                    .redirectErrorStream(false)
-                    .start()
-                val output = dumpProcess.inputStream.bufferedReader().use { reader ->
-                    reader.lineSequence().firstOrNull { it.startsWith("application-label:") }
+            for (batch in apps.chunked(batchSize)) {
+                val batchLabels = resolveBatch(batch, deviceSerial, adb)
+                if (batchLabels.isNotEmpty()) {
+                    allLabels.putAll(batchLabels)
+                    onBatchResolved(batchLabels)
                 }
-                dumpProcess.waitFor()
+            }
+            allLabels
+        }
+    }
 
-                output?.removePrefix("application-label:")?.trim()?.removeSurrounding("'") ?: ""
-            } catch (_: Exception) {
-                ""
+    private fun resolveBatch(
+        apps: List<Pair<String, String>>,
+        deviceSerial: String,
+        adb: String,
+    ): Map<String, String> {
+        val deviceTmpDir = "/data/local/tmp/_snapadb_labels"
+        val deviceScript = "/data/local/tmp/_snapadb_extract.sh"
+        val deviceArchive = "/data/local/tmp/_snapadb_labels.tar.gz"
+        val localTmpDir = File.createTempFile("snapadb_", "_labels").apply { delete() }
+        val localArchive = File.createTempFile("snapadb_", ".tar.gz")
+
+        try {
+            // Step 1: Push + execute extract script
+            val localScript = File.createTempFile("snapadb_extract_", ".sh")
+            try {
+                localScript.writeText(buildString {
+                    appendLine("#!/bin/sh")
+                    appendLine("rm -rf $deviceTmpDir $deviceArchive")
+                    appendLine("mkdir -p $deviceTmpDir")
+                    for ((pkg, apkPath) in apps) {
+                        val safeApk = apkPath.replace("'", "'\\''")
+                        appendLine("mkdir -p $deviceTmpDir/$pkg && unzip -o '$safeApk' AndroidManifest.xml resources.arsc -d $deviceTmpDir/$pkg >/dev/null 2>&1")
+                    }
+                    appendLine("cd /data/local/tmp && tar cf - _snapadb_labels | gzip > $deviceArchive")
+                    appendLine("echo DONE")
+                })
+                exec(adb, "-s", deviceSerial, "push", localScript.absolutePath, deviceScript)
             } finally {
-                tempFile.delete()
+                localScript.delete()
             }
-        }
-    }
 
-    fun isAvailable(): Boolean = aapt2Path != null
+            exec(adb, "-s", deviceSerial, "shell", "sh $deviceScript")
 
-    private fun findAapt2(): String? {
-        val aapt2Name = if (System.getProperty("os.name").lowercase().contains("win")) "aapt2.exe" else "aapt2"
+            // Step 2: Pull compressed archive
+            exec(adb, "-s", deviceSerial, "pull", deviceArchive, localArchive.absolutePath)
 
-        // Try all possible SDK roots
-        for (sdkRoot in findSdkRoots()) {
-            val buildToolsDir = File(sdkRoot, "build-tools")
-            if (!buildToolsDir.isDirectory) continue
+            // Cleanup device
+            ProcessBuilder(adb, "-s", deviceSerial, "shell", "rm -rf $deviceTmpDir $deviceScript $deviceArchive")
+                .redirectErrorStream(true).start()
 
-            val latestVersion = buildToolsDir.listFiles()
-                ?.filter { it.isDirectory }
-                ?.maxByOrNull { it.name }
-                ?: continue
+            // Step 3: Extract locally
+            localTmpDir.mkdirs()
+            val tarProcess = ProcessBuilder("tar", "xzf", localArchive.absolutePath, "-C", localTmpDir.absolutePath)
+                .redirectErrorStream(true).start()
+            tarProcess.inputStream.bufferedReader().readText()
+            tarProcess.waitFor()
 
-            val aapt2File = File(latestVersion, aapt2Name)
-            if (aapt2File.canExecute()) return aapt2File.absolutePath
-        }
-        return null
-    }
+            val pkgParentDir = File(localTmpDir, "_snapadb_labels").takeIf { it.isDirectory } ?: localTmpDir
 
-    private fun findSdkRoots(): List<File> = buildList {
-        // 1. Derive from adb path: <SDK>/platform-tools/adb
-        adbPath.resolve()?.let { adbBin ->
-            val adbFile = File(adbBin)
-            val parent = adbFile.parentFile
-            if (parent?.name == "platform-tools") {
-                parent.parentFile?.let { add(it) }
+            // Step 4: Parse labels with in-JVM apk-parser (no aapt2 needed)
+            val labels = mutableMapOf<String, String>()
+            for ((pkg, _) in apps) {
+                val label = resolveFromExtracted(pkgParentDir, pkg)
+                if (label.isNotEmpty()) labels[pkg] = label
             }
+            return labels
+        } catch (_: Exception) {
+            return emptyMap()
+        } finally {
+            localTmpDir.deleteRecursively()
+            localArchive.delete()
         }
-
-        // 2. ANDROID_HOME
-        System.getenv("ANDROID_HOME")?.let { add(File(it)) }
-
-        // 3. ANDROID_SDK_ROOT
-        System.getenv("ANDROID_SDK_ROOT")?.let { add(File(it)) }
-
-        // 4. Common default locations
-        val home = System.getProperty("user.home")
-        add(File(home, "Library/Android/sdk"))          // macOS
-        add(File(home, "Android/Sdk"))                   // Linux
-        add(File(home, "AppData/Local/Android/Sdk"))     // Windows
     }
+
+    private fun exec(vararg args: String): String {
+        val process = ProcessBuilder(*args).redirectErrorStream(true).start()
+        val output = process.inputStream.bufferedReader().readText()
+        process.waitFor()
+        return output
+    }
+
+    private fun resolveFromExtracted(parentDir: File, pkg: String): String {
+        val pkgDir = File(parentDir, pkg)
+        val manifest = File(pkgDir, "AndroidManifest.xml")
+        val resources = File(pkgDir, "resources.arsc")
+        if (!manifest.exists() || !resources.exists()) return ""
+
+        val miniApk = File.createTempFile("snapadb_mini_", ".apk")
+        try {
+            // Create a minimal APK containing only manifest + resources
+            ZipOutputStream(FileOutputStream(miniApk)).use { zos ->
+                for (file in listOf(manifest, resources)) {
+                    zos.putNextEntry(ZipEntry(file.name))
+                    file.inputStream().use { it.copyTo(zos) }
+                    zos.closeEntry()
+                }
+            }
+
+            if (miniApk.length() == 0L) return ""
+
+            // Parse label using in-JVM library — no aapt2 process needed
+            ApkFile(miniApk).use { apkFile ->
+                apkFile.preferredLocale = Locale.getDefault()
+                return apkFile.apkMeta.label ?: ""
+            }
+        } catch (_: Exception) {
+            return ""
+        } finally {
+            miniApk.delete()
+        }
+    }
+
+    fun isAvailable(): Boolean = true
 }

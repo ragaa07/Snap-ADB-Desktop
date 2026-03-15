@@ -20,6 +20,7 @@ import com.ragaa.snapadb.core.theme.ThemeRepository
 import com.ragaa.snapadb.core.ui.DeviceInfo
 import com.ragaa.snapadb.core.ui.MainShell
 import com.ragaa.snapadb.core.ui.components.AdbSetupScreen
+import com.ragaa.snapadb.feature.appmanager.LabelResolutionService
 import com.ragaa.snapadb.feature.screenmirror.MirrorPanel
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -71,9 +72,14 @@ fun App(
             null -> {} // Initial check in progress
             false -> AdbSetupScreen(onRetry = { adbAvailable = adbPath.resolve() != null })
             true -> {
+                val labelResolutionService = koinInject<LabelResolutionService>()
                 DisposableEffect(Unit) {
                     deviceMonitor.start()
-                    onDispose { deviceMonitor.stop() }
+                    labelResolutionService.start()
+                    onDispose {
+                        labelResolutionService.stop()
+                        deviceMonitor.stop()
+                    }
                 }
 
                 val selectedDevice by deviceMonitor.selectedDevice.collectAsState()

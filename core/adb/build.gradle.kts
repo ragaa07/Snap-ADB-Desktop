@@ -9,5 +9,8 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.koin.core)
         }
+        jvmMain.dependencies {
+            implementation(libs.apk.parser)
+        }
     }
 }

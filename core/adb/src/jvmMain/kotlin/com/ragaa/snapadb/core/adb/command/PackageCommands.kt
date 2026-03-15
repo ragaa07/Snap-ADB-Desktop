@@ -63,6 +63,27 @@ class RevokePermission(private val packageName: String, private val permission: 
     override fun parse(result: ProcessResult): String = result.stdout.trim()
 }
 
+class GetInstallTimes : AdbCommand<Map<String, String>> {
+    override fun args(): List<String> = listOf(
+        "shell",
+        "for pkg in \$(pm list packages -3 | cut -d: -f2); do " +
+                "t=\$(dumpsys package \$pkg | grep firstInstallTime | head -1 | sed 's/.*=//;s/^ *//'); " +
+                "echo \"IT:\$pkg:\$t\"; done"
+    )
+
+    override fun parse(result: ProcessResult): Map<String, String> {
+        val map = mutableMapOf<String, String>()
+        for (line in result.stdout.lines()) {
+            if (!line.startsWith("IT:")) continue
+            val parts = line.removePrefix("IT:").split(":", limit = 2)
+            if (parts.size == 2 && parts[1].isNotBlank()) {
+                map[parts[0]] = parts[1].trim()
+            }
+        }
+        return map
+    }
+}
+
 class UninstallApp(private val packageName: String) : AdbCommand<String> {
     init {
         require(packageName.matches(PACKAGE_NAME_PATTERN)) { "Invalid package name: $packageName" }

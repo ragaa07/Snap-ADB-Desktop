@@ -1,5 +1,7 @@
 package com.ragaa.snapadb.core.adb.model
 
+import java.util.concurrent.atomic.AtomicLong
+
 enum class LogLevel(val label: String) {
     VERBOSE("V"),
     DEBUG("D"),
@@ -30,4 +32,9 @@ data class LogcatEntry(
     val level: LogLevel,
     val tag: String,
     val message: String,
-)
+    val id: Long = idCounter.getAndIncrement(),
+) {
+    companion object {
+        private val idCounter = AtomicLong(0)
+    }
+}

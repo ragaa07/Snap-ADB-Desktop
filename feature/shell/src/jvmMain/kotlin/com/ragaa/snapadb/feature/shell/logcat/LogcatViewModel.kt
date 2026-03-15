@@ -20,7 +20,10 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
 import java.io.File
+import java.util.concurrent.atomic.AtomicReference
 
 class LogcatViewModel(
     private val adbClient: AdbClient,
@@ -31,6 +34,9 @@ class LogcatViewModel(
 
     private val _state = MutableStateFlow<LogcatState>(LogcatState.NoDevice)
     val state: StateFlow<LogcatState> = _state.asStateFlow()
+
+    private val _actionResult = MutableStateFlow<String?>(null)
+    val actionResult: StateFlow<String?> = _actionResult.asStateFlow()
 
     private val entriesMutex = Mutex()
     private val allEntries = mutableListOf<LogcatEntry>()
@@ -46,6 +52,14 @@ class LogcatViewModel(
     private var packageFilter: String = ""
     private var searchText: String = ""
 
+    // Regex search state
+    private val isRegexSearch = MutableStateFlow(false)
+    private val cachedRegex = AtomicReference<Regex?>(null)
+
+    // Bookmark state
+    private val bookmarkedIds = MutableStateFlow<Set<Long>>(emptySet())
+    private val showBookmarksOnly = MutableStateFlow(false)
+
     // Cached saved filters — only refreshed on save/delete/load
     private var cachedSavedFilters: List<SavedFilter> = emptyList()
 
@@ -58,6 +72,7 @@ class LogcatViewModel(
             deviceMonitor.selectedDevice.collectLatest { device ->
                 stopStream()
                 entriesMutex.withLock { allEntries.clear() }
+                bookmarkedIds.value = emptySet()
                 if (device == null) {
                     currentSerial = null
                     _state.value = LogcatState.NoDevice
@@ -88,8 +103,29 @@ class LogcatViewModel(
             }
             is LogcatIntent.SetSearchText -> {
                 searchText = intent.text
+                recompileRegex()
                 dirty = true
             }
+            is LogcatIntent.ToggleRegexSearch -> {
+                isRegexSearch.value = !isRegexSearch.value
+                recompileRegex()
+                dirty = true
+            }
+            is LogcatIntent.ToggleBookmark -> {
+                val current = bookmarkedIds.value
+                bookmarkedIds.value = if (intent.entryId in current) {
+                    current - intent.entryId
+                } else {
+                    current + intent.entryId
+                }
+                if (showBookmarksOnly.value) dirty = true
+            }
+            is LogcatIntent.ToggleShowBookmarksOnly -> {
+                showBookmarksOnly.value = !showBookmarksOnly.value
+                dirty = true
+            }
+            is LogcatIntent.CopyToClipboard -> copyToClipboard()
+            is LogcatIntent.DismissActionResult -> _actionResult.value = null
             is LogcatIntent.ExportToFile -> exportToFile(intent.file)
             is LogcatIntent.SaveFilter -> saveFilter(intent.name)
             is LogcatIntent.LoadFilter -> loadFilter(intent.id)
@@ -98,6 +134,20 @@ class LogcatViewModel(
             is LogcatIntent.Retry -> {
                 currentSerial?.let { startStream(it) }
             }
+        }
+    }
+
+    private fun recompileRegex() {
+        if (isRegexSearch.value && searchText.isNotBlank()) {
+            cachedRegex.set(
+                try {
+                    Regex(searchText, RegexOption.IGNORE_CASE)
+                } catch (_: Exception) {
+                    null
+                }
+            )
+        } else {
+            cachedRegex.set(null)
         }
     }
 
@@ -111,7 +161,12 @@ class LogcatViewModel(
                     entriesMutex.withLock {
                         allEntries.add(entry)
                         if (allEntries.size > MAX_ENTRIES) {
-                            allEntries.removeFirst()
+                            val removed = allEntries.removeFirst()
+                            // Clean up stale bookmark
+                            val bm = bookmarkedIds.value
+                            if (removed.id in bm) {
+                                bookmarkedIds.value = bm - removed.id
+                            }
                         }
                     }
                     dirty = true
@@ -157,24 +212,75 @@ class LogcatViewModel(
             entriesMutex.withLock { allEntries.clear() }
             adbClient.execute(ClearLogcat(), serial)
         }
+        bookmarkedIds.value = emptySet()
         viewModelScope.launch { emitStreamingState() }
     }
 
     private suspend fun applyFilters(): List<LogcatEntry> {
+        val regexMode = isRegexSearch.value
+        val regex = cachedRegex.get()
+        val tags = tagFilter.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        val bookmarksOnly = showBookmarksOnly.value
+        val bookmarks = bookmarkedIds.value
+
         return entriesMutex.withLock {
             allEntries.filter { entry ->
                 entry.level.ordinal >= minLevel.ordinal &&
-                    (tagFilter.isBlank() || entry.tag.contains(tagFilter, ignoreCase = true)) &&
+                    (tags.isEmpty() || tags.any { t -> entry.tag.contains(t, ignoreCase = true) }) &&
                     (packageFilter.isBlank() || entry.pid == packageFilter || entry.message.contains(packageFilter, ignoreCase = true)) &&
-                    (searchText.isBlank() || entry.message.contains(searchText, ignoreCase = true) || entry.tag.contains(searchText, ignoreCase = true))
+                    matchesSearch(entry, regexMode, regex) &&
+                    (!bookmarksOnly || entry.id in bookmarks)
             }
         }
+    }
+
+    private fun matchesSearch(entry: LogcatEntry, regexMode: Boolean, regex: Regex?): Boolean {
+        if (searchText.isBlank()) return true
+        if (regexMode) {
+            return regex?.let {
+                it.containsMatchIn(entry.message) || it.containsMatchIn(entry.tag)
+            } ?: false
+        }
+        return entry.message.contains(searchText, ignoreCase = true) ||
+            entry.tag.contains(searchText, ignoreCase = true)
+    }
+
+    private fun detectCrashGroups(entries: List<LogcatEntry>): List<CrashGroup> {
+        val groups = mutableListOf<CrashGroup>()
+        var currentGroup: MutableCrashGroup? = null
+
+        for (entry in entries) {
+            if (CRASH_START.containsMatchIn(entry.message)) {
+                // Finalize previous group
+                currentGroup?.let { groups.add(it.toGroup()) }
+                currentGroup = MutableCrashGroup(
+                    startEntryId = entry.id,
+                    entryIds = mutableSetOf(entry.id),
+                    summary = entry.message.take(120),
+                )
+            } else if (currentGroup != null) {
+                if (STACK_TRACE_LINE.containsMatchIn(entry.message) ||
+                    EXCEPTION_LINE.containsMatchIn(entry.message)
+                ) {
+                    currentGroup.entryIds.add(entry.id)
+                } else {
+                    // End of crash group
+                    groups.add(currentGroup.toGroup())
+                    currentGroup = null
+                }
+            }
+        }
+        currentGroup?.let { groups.add(it.toGroup()) }
+        return groups
     }
 
     private suspend fun emitStreamingState() {
         val serial = currentSerial ?: return
         val filtered = applyFilters()
         val totalCount = entriesMutex.withLock { allEntries.size }
+        val crashGroups = detectCrashGroups(filtered)
+        val regexValid = !isRegexSearch.value || searchText.isBlank() || cachedRegex.get() != null
+
         _state.value = LogcatState.Streaming(
             deviceSerial = serial,
             entries = filtered,
@@ -185,7 +291,25 @@ class LogcatViewModel(
             packageFilter = packageFilter,
             searchText = searchText,
             savedFilters = cachedSavedFilters,
+            isRegexSearch = isRegexSearch.value,
+            isRegexValid = regexValid,
+            bookmarkedIds = bookmarkedIds.value,
+            showBookmarksOnly = showBookmarksOnly.value,
+            crashGroups = crashGroups,
         )
+    }
+
+    private fun copyToClipboard() {
+        viewModelScope.launch(dispatchers.io) {
+            val filtered = applyFilters()
+            val text = filtered.joinToString("\n") { entry ->
+                "${entry.timestamp} ${entry.level.label}/${entry.tag}(${entry.pid}): ${entry.message}"
+            }
+            javax.swing.SwingUtilities.invokeLater {
+                Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
+            }
+            _actionResult.value = "Copied ${filtered.size} entries to clipboard"
+        }
     }
 
     private fun exportToFile(file: File) {
@@ -224,6 +348,7 @@ class LogcatViewModel(
             tagFilter = filter.tag_pattern ?: ""
             packageFilter = filter.package_name ?: ""
             searchText = filter.search_text ?: ""
+            recompileRegex()
             emitStreamingState()
         }
     }
@@ -254,8 +379,26 @@ class LogcatViewModel(
     companion object {
         private const val MAX_ENTRIES = 10_000
         private const val EMIT_INTERVAL_MS = 100L
+
+        val CRASH_START = Regex("FATAL EXCEPTION|ANR in|FATAL SIGNAL")
+        val STACK_TRACE_LINE = Regex("""^\s+at\s+\S+|^\s+Caused by:\s+|^\s+\.\.\.\s+\d+\s+more""")
+        val EXCEPTION_LINE = Regex("""^[\w.$]+Exception|^[\w.$]+Error""")
     }
 }
+
+private class MutableCrashGroup(
+    val startEntryId: Long,
+    val entryIds: MutableSet<Long>,
+    val summary: String,
+) {
+    fun toGroup() = CrashGroup(startEntryId, entryIds.toSet(), summary)
+}
+
+data class CrashGroup(
+    val startEntryId: Long,
+    val entryIds: Set<Long>,
+    val summary: String,
+)
 
 sealed class LogcatState {
     data object NoDevice : LogcatState()
@@ -270,6 +413,11 @@ sealed class LogcatState {
         val packageFilter: String,
         val searchText: String,
         val savedFilters: List<SavedFilter>,
+        val isRegexSearch: Boolean,
+        val isRegexValid: Boolean,
+        val bookmarkedIds: Set<Long>,
+        val showBookmarksOnly: Boolean,
+        val crashGroups: List<CrashGroup>,
     ) : LogcatState()
 }
 
@@ -281,6 +429,11 @@ sealed class LogcatIntent {
     data class SetTagFilter(val tag: String) : LogcatIntent()
     data class SetPackageFilter(val packageName: String) : LogcatIntent()
     data class SetSearchText(val text: String) : LogcatIntent()
+    data object ToggleRegexSearch : LogcatIntent()
+    data class ToggleBookmark(val entryId: Long) : LogcatIntent()
+    data object ToggleShowBookmarksOnly : LogcatIntent()
+    data object CopyToClipboard : LogcatIntent()
+    data object DismissActionResult : LogcatIntent()
     data class ExportToFile(val file: File) : LogcatIntent()
     data class SaveFilter(val name: String) : LogcatIntent()
     data class LoadFilter(val id: Long) : LogcatIntent()

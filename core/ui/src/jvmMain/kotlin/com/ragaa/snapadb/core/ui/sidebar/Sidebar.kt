@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.SettingsRemote
 import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.TableChart
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Summarize
 import androidx.compose.material.icons.outlined.Terminal
@@ -56,6 +57,7 @@ private val manageGroup = listOf(
     NavItem(Route.AppManager, Icons.Outlined.Apps),
     NavItem(Route.FileExplorer, Icons.Outlined.Folder),
     NavItem(Route.AppData, Icons.Outlined.Storage),
+    NavItem(Route.DbInspector, Icons.Outlined.TableChart),
     NavItem(Route.Shell, Icons.Outlined.Terminal),
     NavItem(Route.Logcat, Icons.Outlined.BugReport),
 )

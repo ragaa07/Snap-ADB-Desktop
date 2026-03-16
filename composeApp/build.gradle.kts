@@ -33,6 +33,7 @@ kotlin {
             implementation(projects.feature.notification)
             implementation(projects.feature.appdata)
             implementation(projects.feature.bugreporter)
+            implementation(projects.feature.dbinspector)
 
             implementation(compose.runtime)
             implementation(compose.foundation)

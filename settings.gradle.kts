@@ -55,5 +55,6 @@ include(":feature:deeplink")
 include(":feature:notification")
 include(":feature:appdata")
 include(":feature:bugreporter")
+include(":feature:dbinspector")
 
 include(":lib:mirror")

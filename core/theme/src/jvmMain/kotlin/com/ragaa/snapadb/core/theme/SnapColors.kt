@@ -42,6 +42,8 @@ data class SnapColors(
     val chartOrange: Color,
     val chartRed: Color,
     val chartPurple: Color,
+    val chartCyan: Color,
+    val chartYellow: Color,
 
     // Terminal
     val terminalCommand: Color,
@@ -72,6 +74,8 @@ val DarkSnapColors = SnapColors(
     chartOrange = SnapAmber,
     chartRed = SnapRed,
     chartPurple = SnapPurple,
+    chartCyan = Color(0xFF22D3EE),
+    chartYellow = Color(0xFFFACC15),
     terminalCommand = SnapBlue,
     terminalStdout = Color(0xFFE1E3EC),
     terminalStderr = SnapRed,
@@ -100,6 +104,8 @@ val LightSnapColors = SnapColors(
     chartOrange = Color(0xFFE6A030),
     chartRed = Color(0xFFD32F2F),
     chartPurple = Color(0xFF9333EA),
+    chartCyan = Color(0xFF06B6D4),
+    chartYellow = Color(0xFFEAB308),
     terminalCommand = SnapBlueDark,
     terminalStdout = Color(0xFF1A1C24),
     terminalStderr = Color(0xFFD32F2F),

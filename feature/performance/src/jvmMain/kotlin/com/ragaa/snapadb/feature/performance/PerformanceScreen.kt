@@ -19,25 +19,35 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Battery5Bar
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DeviceUnknown
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Memory
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Save
 import androidx.compose.material.icons.outlined.SaveAlt
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Stop
+import androidx.compose.material.icons.outlined.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,17 +63,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.ragaa.snapadb.core.theme.SnapAdbTheme
 import com.ragaa.snapadb.feature.performance.chart.ChartConfig
 import com.ragaa.snapadb.feature.performance.chart.ChartSeries
 import com.ragaa.snapadb.feature.performance.chart.LineChart
+import com.ragaa.snapadb.feature.performance.model.ThresholdConfig
+import com.ragaa.snapadb.feature.performance.session.PerformanceSessionSummary
 import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.swing.JFileChooser
 import javax.swing.SwingUtilities
 import javax.swing.filechooser.FileNameExtensionFilter
-
-import com.ragaa.snapadb.core.theme.SnapAdbTheme
 
 @Composable
 fun PerformanceScreen(viewModel: PerformanceViewModel = koinViewModel()) {
@@ -87,12 +101,23 @@ private fun ReadyContent(
     onIntent: (PerformanceIntent) -> Unit,
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Overview", "CPU", "Memory", "Battery")
+    val tabs = listOf("Overview", "CPU", "Memory", "Battery", "GPU", "Network")
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Header + Controls
             ControlBar(state, onIntent)
+
+            // Alert banner
+            if (state.activeAlerts.isNotEmpty()) {
+                AlertBanner(state, onIntent)
+            }
+
+            // Session viewing banner
+            state.viewingSessionId?.let { sessionId ->
+                val session = state.sessions.firstOrNull { it.id == sessionId }
+                SessionViewBanner(session, onIntent)
+            }
 
             // Tabs
             @OptIn(ExperimentalMaterial3Api::class)
@@ -119,6 +144,8 @@ private fun ReadyContent(
                     1 -> CpuTab(state)
                     2 -> MemoryTab(state, onIntent)
                     3 -> BatteryTab(state)
+                    4 -> GpuTab(state)
+                    5 -> NetworkTab(state)
                 }
             }
         }
@@ -152,12 +179,78 @@ private fun ReadyContent(
     }
 }
 
+@Composable
+private fun AlertBanner(state: PerformanceState.Ready, onIntent: (PerformanceIntent) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Outlined.Warning,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = state.activeAlerts.joinToString(" | ") {
+                val unit = if (it.metric == "Battery Temp") "\u00B0C" else "%"
+                "${it.metric}: %.1f$unit (threshold: %.1f$unit)".format(it.currentValue, it.threshold)
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = { onIntent(PerformanceIntent.DismissAlerts) }, modifier = Modifier.size(24.dp)) {
+            Icon(Icons.Outlined.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun SessionViewBanner(session: PerformanceSessionSummary?, onIntent: (PerformanceIntent) -> Unit) {
+    val dateFormat = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.tertiaryContainer)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Outlined.History,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = session?.let {
+                "Viewing session from ${dateFormat.format(Date(it.startedAt))}"
+            } ?: "Viewing historical session",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = { onIntent(PerformanceIntent.ExitSessionView) }) {
+            Text("Exit")
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ControlBar(state: PerformanceState.Ready, onIntent: (PerformanceIntent) -> Unit) {
     var intervalExpanded by remember { mutableStateOf(false) }
+    var showThresholdDialog by remember { mutableStateOf(false) }
+    var showSessionsMenu by remember { mutableStateOf(false) }
+    var deleteConfirmSessionId by remember { mutableStateOf<Long?>(null) }
     val intervals = listOf(500L to "500ms", 1000L to "1s", 2000L to "2s", 5000L to "5s")
     val currentLabel = intervals.firstOrNull { it.first == state.pollingIntervalMs }?.second ?: "${state.pollingIntervalMs}ms"
+    val isViewingSession = state.viewingSessionId != null
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -166,16 +259,53 @@ private fun ControlBar(state: PerformanceState.Ready, onIntent: (PerformanceInte
     ) {
         Text("Performance", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
 
+        // Threshold settings
+        IconButton(onClick = { showThresholdDialog = true }) {
+            Icon(Icons.Outlined.Notifications, contentDescription = "Thresholds")
+        }
+
+        // Sessions
+        Box {
+            IconButton(onClick = { showSessionsMenu = !showSessionsMenu }) {
+                Icon(Icons.Outlined.History, contentDescription = "Sessions")
+            }
+            DropdownMenu(expanded = showSessionsMenu, onDismissRequest = { showSessionsMenu = false }) {
+                if (state.sessions.isEmpty()) {
+                    DropdownMenuItem(text = { Text("No saved sessions") }, onClick = {})
+                } else {
+                    state.sessions.forEach { session ->
+                        SessionMenuItem(
+                            session = session,
+                            onLoad = {
+                                onIntent(PerformanceIntent.LoadSession(session.id))
+                                showSessionsMenu = false
+                            },
+                            onDelete = { deleteConfirmSessionId = session.id },
+                        )
+                    }
+                }
+            }
+        }
+
+        // Save session
+        IconButton(
+            onClick = { onIntent(PerformanceIntent.SaveSession) },
+            enabled = !isViewingSession && state.snapshot.cpuPoints.isNotEmpty(),
+        ) {
+            Icon(Icons.Outlined.Save, contentDescription = "Save Session")
+        }
+
         // Polling interval
         ExposedDropdownMenuBox(
             expanded = intervalExpanded,
-            onExpandedChange = { intervalExpanded = it },
+            onExpandedChange = { if (!isViewingSession) intervalExpanded = it },
             modifier = Modifier.width(120.dp),
         ) {
             OutlinedTextField(
                 value = currentLabel,
                 onValueChange = {},
                 readOnly = true,
+                enabled = !isViewingSession,
                 modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(intervalExpanded) },
                 singleLine = true,
@@ -196,28 +326,33 @@ private fun ControlBar(state: PerformanceState.Ready, onIntent: (PerformanceInte
         }
 
         // Start/Stop
-        if (state.isMonitoring) {
-            Button(
-                onClick = { onIntent(PerformanceIntent.StopMonitoring) },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError,
-                ),
-            ) {
-                Icon(Icons.Outlined.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Stop")
-            }
-        } else {
-            Button(onClick = { onIntent(PerformanceIntent.StartMonitoring) }) {
-                Icon(Icons.Outlined.Speed, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Start")
+        if (!isViewingSession) {
+            if (state.isMonitoring) {
+                Button(
+                    onClick = { onIntent(PerformanceIntent.StopMonitoring) },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                ) {
+                    Icon(Icons.Outlined.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Stop")
+                }
+            } else {
+                Button(onClick = { onIntent(PerformanceIntent.StartMonitoring) }) {
+                    Icon(Icons.Outlined.Speed, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Start")
+                }
             }
         }
 
         // Reset
-        OutlinedButton(onClick = { onIntent(PerformanceIntent.ResetData) }) { Text("Reset") }
+        OutlinedButton(
+            onClick = { onIntent(PerformanceIntent.ResetData) },
+            enabled = !isViewingSession,
+        ) { Text("Reset") }
 
         // Export
         OutlinedButton(onClick = {
@@ -239,6 +374,142 @@ private fun ControlBar(state: PerformanceState.Ready, onIntent: (PerformanceInte
             Text("CSV")
         }
     }
+
+    // Threshold config dialog
+    if (showThresholdDialog) {
+        ThresholdConfigDialog(
+            config = state.thresholdConfig,
+            onDismiss = { showThresholdDialog = false },
+            onSave = { config ->
+                onIntent(PerformanceIntent.SetThresholdConfig(config))
+                showThresholdDialog = false
+            },
+        )
+    }
+
+    // Delete confirmation dialog
+    deleteConfirmSessionId?.let { sessionId ->
+        AlertDialog(
+            onDismissRequest = { deleteConfirmSessionId = null },
+            title = { Text("Delete Session") },
+            text = { Text("Are you sure you want to delete this session? This cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onIntent(PerformanceIntent.DeleteSession(sessionId))
+                        deleteConfirmSessionId = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { deleteConfirmSessionId = null }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+@Composable
+private fun SessionMenuItem(
+    session: PerformanceSessionSummary,
+    onLoad: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val dateFormat = remember { SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()) }
+    DropdownMenuItem(
+        text = {
+            Column {
+                Text(
+                    "${session.deviceSerial} - ${dateFormat.format(Date(session.startedAt))}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    session.appPackage ?: "System-wide",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        onClick = onLoad,
+        trailingIcon = {
+            IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    Icons.Outlined.Delete,
+                    contentDescription = "Delete",
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            }
+        },
+    )
+}
+
+@Composable
+private fun ThresholdConfigDialog(
+    config: ThresholdConfig,
+    onDismiss: () -> Unit,
+    onSave: (ThresholdConfig) -> Unit,
+) {
+    var cpuEnabled by remember { mutableStateOf(config.cpuPercent != null) }
+    var cpuValue by remember { mutableStateOf(config.cpuPercent?.toString() ?: "80") }
+    var memEnabled by remember { mutableStateOf(config.memoryPercent != null) }
+    var memValue by remember { mutableStateOf(config.memoryPercent?.toString() ?: "90") }
+    var tempEnabled by remember { mutableStateOf(config.batteryTempC != null) }
+    var tempValue by remember { mutableStateOf(config.batteryTempC?.toString() ?: "40") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Threshold Alerts") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                ThresholdRow("CPU %", cpuEnabled, cpuValue, { cpuEnabled = it }, { cpuValue = it })
+                ThresholdRow("Memory %", memEnabled, memValue, { memEnabled = it }, { memValue = it })
+                ThresholdRow("Temp \u00B0C", tempEnabled, tempValue, { tempEnabled = it }, { tempValue = it })
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                onSave(
+                    ThresholdConfig(
+                        cpuPercent = if (cpuEnabled) cpuValue.toFloatOrNull() else null,
+                        memoryPercent = if (memEnabled) memValue.toFloatOrNull() else null,
+                        batteryTempC = if (tempEnabled) tempValue.toFloatOrNull() else null,
+                    )
+                )
+            }) { Text("Save") }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+private fun ThresholdRow(
+    label: String,
+    enabled: Boolean,
+    value: String,
+    onEnabledChange: (Boolean) -> Unit,
+    onValueChange: (String) -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Switch(checked = enabled, onCheckedChange = onEnabledChange)
+        Text(label, modifier = Modifier.width(80.dp), style = MaterialTheme.typography.bodyMedium)
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            enabled = enabled,
+            modifier = Modifier.width(100.dp),
+            singleLine = true,
+            shape = RoundedCornerShape(8.dp),
+        )
+    }
 }
 
 @Composable
@@ -252,25 +523,59 @@ private fun OverviewTab(state: PerformanceState.Ready) {
     ) {
         SummaryCard(
             title = "CPU",
-            value = snap.cpuInfo?.let { "%.1f%%".format(it.overallPercent) } ?: "—",
+            value = snap.cpuInfo?.let { "%.1f%%".format(it.overallPercent) } ?: "\u2014",
             icon = Icons.Outlined.Speed,
             color = SnapAdbTheme.colors.chartBlue,
             modifier = Modifier.weight(1f),
         )
         SummaryCard(
             title = "Memory",
-            value = snap.memoryInfo?.let { "${it.usagePercent}%" } ?: "—",
+            value = snap.memoryInfo?.let { "${it.usagePercent}%" } ?: "\u2014",
             icon = Icons.Outlined.Memory,
             color = SnapAdbTheme.colors.chartGreen,
             modifier = Modifier.weight(1f),
         )
         SummaryCard(
             title = "Battery",
-            value = snap.batteryInfo?.let { "${it.level}%" } ?: "—",
+            value = snap.batteryInfo?.let { "${it.level}%" } ?: "\u2014",
             icon = Icons.Outlined.Battery5Bar,
             color = SnapAdbTheme.colors.chartOrange,
             modifier = Modifier.weight(1f),
         )
+    }
+
+    // GPU + Network summary row
+    if (snap.gpuInfo != null || snap.networkIoRate != null) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            snap.gpuInfo?.let { gpu ->
+                SummaryCard(
+                    title = "Janky Frames",
+                    value = "%.1f%%".format(gpu.jankyPercent),
+                    icon = Icons.Outlined.Speed,
+                    color = SnapAdbTheme.colors.chartPurple,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            snap.networkIoRate?.let { rate ->
+                SummaryCard(
+                    title = "Net Down",
+                    value = formatBytesPerSec(rate.rxBytesPerSec),
+                    icon = Icons.Outlined.Speed,
+                    color = SnapAdbTheme.colors.chartCyan,
+                    modifier = Modifier.weight(1f),
+                )
+                SummaryCard(
+                    title = "Net Up",
+                    value = formatBytesPerSec(rate.txBytesPerSec),
+                    icon = Icons.Outlined.Speed,
+                    color = SnapAdbTheme.colors.chartYellow,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
     }
 
     // Combined chart
@@ -459,7 +764,139 @@ private fun BatteryTab(state: PerformanceState.Ready) {
     }
 }
 
+@Composable
+private fun GpuTab(state: PerformanceState.Ready) {
+    val snap = state.snapshot
+
+    if (state.appPackageFilter.isBlank()) {
+        SectionCard("GPU Rendering") {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(200.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "Set an app package filter in the Memory tab to view GPU stats",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        return
+    }
+
+    snap.gpuInfo?.let { gpu ->
+        // Summary cards
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            SummaryCard(
+                title = "Total Frames",
+                value = gpu.totalFrames.toString(),
+                icon = Icons.Outlined.Speed,
+                color = SnapAdbTheme.colors.chartPurple,
+                modifier = Modifier.weight(1f),
+            )
+            SummaryCard(
+                title = "Janky Frames",
+                value = gpu.jankyFrames.toString(),
+                icon = Icons.Outlined.Warning,
+                color = SnapAdbTheme.colors.chartRed,
+                modifier = Modifier.weight(1f),
+            )
+            SummaryCard(
+                title = "Janky %",
+                value = "%.1f%%".format(gpu.jankyPercent),
+                icon = Icons.Outlined.Speed,
+                color = if (gpu.jankyPercent > 5f) SnapAdbTheme.colors.chartRed else SnapAdbTheme.colors.chartPurple,
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        SectionCard("Frame Time Percentiles") {
+            StatRow("50th percentile", "%.1f ms".format(gpu.percentile50Ms))
+            StatRow("90th percentile", "%.1f ms".format(gpu.percentile90Ms))
+            StatRow("95th percentile", "%.1f ms".format(gpu.percentile95Ms))
+            StatRow("99th percentile", "%.1f ms".format(gpu.percentile99Ms))
+        }
+    } ?: run {
+        SectionCard("GPU Rendering") {
+            EmptyChartPlaceholder()
+        }
+    }
+}
+
+@Composable
+private fun NetworkTab(state: PerformanceState.Ready) {
+    val snap = state.snapshot
+
+    if (state.appPackageFilter.isBlank()) {
+        SectionCard("Network I/O") {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(200.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "Set an app package filter in the Memory tab to view network stats",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        return
+    }
+
+    SectionCard("Network I/O") {
+        val hasData = snap.networkRxPoints.isNotEmpty() || snap.networkTxPoints.isNotEmpty()
+        if (!hasData) {
+            EmptyChartPlaceholder()
+        } else {
+            val series = buildList {
+                if (snap.networkRxPoints.isNotEmpty()) {
+                    add(ChartSeries("RX", SnapAdbTheme.colors.chartCyan, snap.networkRxPoints))
+                }
+                if (snap.networkTxPoints.isNotEmpty()) {
+                    add(ChartSeries("TX", SnapAdbTheme.colors.chartYellow, snap.networkTxPoints))
+                }
+            }
+            val maxVal = maxOf(
+                snap.networkRxPoints.maxOfOrNull { it.value } ?: 0f,
+                snap.networkTxPoints.maxOfOrNull { it.value } ?: 0f,
+                1f,
+            ) * 1.2f
+            LineChart(
+                series = series,
+                config = ChartConfig(maxY = maxVal, yAxisLabel = "B/s"),
+                modifier = Modifier.fillMaxWidth().height(250.dp),
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.padding(top = 8.dp),
+            ) {
+                LegendItem("Download (RX)", SnapAdbTheme.colors.chartCyan)
+                LegendItem("Upload (TX)", SnapAdbTheme.colors.chartYellow)
+            }
+        }
+    }
+
+    // Current rates
+    snap.networkIoRate?.let { rate ->
+        SectionCard("Current Rates") {
+            StatRow("Download", formatBytesPerSec(rate.rxBytesPerSec))
+            StatRow("Upload", formatBytesPerSec(rate.txBytesPerSec))
+        }
+    }
+}
+
 // Utility composables
+
+private fun formatBytesPerSec(bytesPerSec: Float): String {
+    return when {
+        bytesPerSec >= 1_048_576f -> "%.1f MB/s".format(bytesPerSec / 1_048_576f)
+        bytesPerSec >= 1024f -> "%.1f KB/s".format(bytesPerSec / 1024f)
+        else -> "%.0f B/s".format(bytesPerSec)
+    }
+}
 
 @Composable
 private fun SectionCard(title: String, content: @Composable () -> Unit) {

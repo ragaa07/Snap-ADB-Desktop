@@ -49,9 +49,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ragaa.snapadb.core.navigation.Route
 import com.ragaa.snapadb.core.navigation.Router
 import com.ragaa.snapadb.core.theme.SnapMint
 import com.ragaa.snapadb.core.theme.ThemeMode
+import com.ragaa.snapadb.core.ui.sidebar.NavItem
 import com.ragaa.snapadb.core.ui.sidebar.RightToolBar
 import com.ragaa.snapadb.core.ui.sidebar.Sidebar
 import kotlinx.coroutines.delay
@@ -72,6 +74,10 @@ fun MainShell(
     devices: List<DeviceInfo>,
     selectedDevice: DeviceInfo?,
     onSelectDevice: (DeviceInfo) -> Unit,
+    pinnedItems: List<NavItem>,
+    overflowItems: List<NavItem>,
+    onPinRoute: (Route) -> Unit,
+    onUnpinRoute: (Route) -> Unit,
     globalMessage: String? = null,
     onDismissGlobalMessage: () -> Unit = {},
     mirrorPanelContent: @Composable () -> Unit,
@@ -106,6 +112,10 @@ fun MainShell(
             Sidebar(
                 currentRoute = currentRoute,
                 onRouteSelected = { router.navigateTo(it) },
+                pinnedItems = pinnedItems,
+                overflowItems = overflowItems,
+                onPinRoute = onPinRoute,
+                onUnpinRoute = onUnpinRoute,
             )
             VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
 

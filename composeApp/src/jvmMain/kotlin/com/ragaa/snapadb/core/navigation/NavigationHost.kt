@@ -20,6 +20,7 @@ import com.ragaa.snapadb.feature.screenmirror.ScreenMirrorScreen
 import com.ragaa.snapadb.feature.appdata.AppDataScreen
 import com.ragaa.snapadb.feature.bugreporter.BugReporterScreen
 import com.ragaa.snapadb.feature.dbinspector.DbInspectorScreen
+import com.ragaa.snapadb.feature.network.NetworkScreen
 import com.ragaa.snapadb.feature.shell.LogcatOnlyScreen
 import com.ragaa.snapadb.feature.shell.TerminalOnlyScreen
 
@@ -48,6 +49,7 @@ fun NavigationHost(router: Router, modifier: Modifier = Modifier) {
             is Route.AppData -> AppDataScreen()
             is Route.BugReporter -> BugReporterScreen()
             is Route.DbInspector -> DbInspectorScreen()
+            is Route.Network -> NetworkScreen()
         }
     }
 }

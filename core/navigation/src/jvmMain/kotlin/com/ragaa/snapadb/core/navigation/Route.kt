@@ -15,4 +15,5 @@ sealed class Route(val title: String) {
     data object AppData : Route("App Data")
     data object BugReporter : Route("Bug Report")
     data object DbInspector : Route("DB Inspector")
+    data object Network : Route("Network")
 }

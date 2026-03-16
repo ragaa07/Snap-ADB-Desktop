@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.LightMode
 import com.ragaa.snapadb.core.ui.components.ErrorState
 import com.ragaa.snapadb.core.ui.components.LoadingState
 import com.ragaa.snapadb.core.ui.components.NoDeviceState
+import com.ragaa.snapadb.core.ui.components.SectionCard
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.NetworkWifi
@@ -667,27 +668,6 @@ private fun SettingsSection(onIntent: (DeviceControlsIntent) -> Unit) {
     }
 }
 
-@Composable
-private fun SectionCard(
-    title: String,
-    icon: ImageVector,
-    content: @Composable () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(12.dp))
-            .padding(16.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(title, style = MaterialTheme.typography.titleMedium)
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        content()
-    }
-}
 
 @Composable
 private fun ActionButton(

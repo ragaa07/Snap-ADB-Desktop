@@ -1,5 +1,7 @@
 package com.ragaa.snapadb.core.ui.sidebar
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.PointerMatcher
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -16,103 +18,192 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.onClick
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ScreenShare
-import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.BugReport
-import androidx.compose.material.icons.outlined.Dashboard
-import androidx.compose.material.icons.outlined.Devices
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.Link
-import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.SettingsRemote
-import androidx.compose.material.icons.outlined.Storage
-import androidx.compose.material.icons.outlined.TableChart
-import androidx.compose.material.icons.outlined.Speed
-import androidx.compose.material.icons.outlined.Summarize
-import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.ragaa.snapadb.core.navigation.Route
-
-private data class NavItem(val route: Route, val icon: ImageVector)
-
-private val overviewGroup = listOf(
-    NavItem(Route.Dashboard, Icons.Outlined.Dashboard),
-    NavItem(Route.MultiDevice, Icons.Outlined.Devices),
-)
-
-private val manageGroup = listOf(
-    NavItem(Route.AppManager, Icons.Outlined.Apps),
-    NavItem(Route.FileExplorer, Icons.Outlined.Folder),
-    NavItem(Route.AppData, Icons.Outlined.Storage),
-    NavItem(Route.DbInspector, Icons.Outlined.TableChart),
-    NavItem(Route.Shell, Icons.Outlined.Terminal),
-    NavItem(Route.Logcat, Icons.Outlined.BugReport),
-)
-
-private val toolsGroup = listOf(
-    NavItem(Route.ScreenMirror, Icons.AutoMirrored.Outlined.ScreenShare),
-    NavItem(Route.Performance, Icons.Outlined.Speed),
-    NavItem(Route.DeviceControls, Icons.Outlined.SettingsRemote),
-)
-
-private val testGroup = listOf(
-    NavItem(Route.DeepLink, Icons.Outlined.Link),
-    NavItem(Route.Notification, Icons.Outlined.Notifications),
-    NavItem(Route.BugReporter, Icons.Outlined.Summarize),
-)
-
-private val allGroups = listOf(overviewGroup, manageGroup, toolsGroup, testGroup)
 
 @Composable
 fun Sidebar(
     currentRoute: Route,
     onRouteSelected: (Route) -> Unit,
+    pinnedItems: List<NavItem>,
+    overflowItems: List<NavItem>,
+    onPinRoute: (Route) -> Unit,
+    onUnpinRoute: (Route) -> Unit,
 ) {
+    var showMoreMenu by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
-            .width(56.dp)
+            .width(72.dp)
             .fillMaxHeight()
             .background(MaterialTheme.colorScheme.surface)
-            .padding(vertical = 8.dp),
+            .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        allGroups.forEachIndexed { groupIndex, group ->
-            if (groupIndex > 0) {
-                GroupDivider()
-            }
-            group.forEach { item ->
-                SidebarItem(
+        // Pinned items (scrollable)
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            pinnedItems.forEach { item ->
+                PinnedSidebarItem(
                     icon = item.icon,
                     label = item.route.title,
                     selected = currentRoute == item.route,
+                    isDashboard = item.route is Route.Dashboard,
                     onClick = { onRouteSelected(item.route) },
+                    onUnpin = { onUnpinRoute(item.route) },
                 )
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        // Divider + More button at bottom
+        if (overflowItems.isNotEmpty()) {
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                color = MaterialTheme.colorScheme.outlineVariant,
+                thickness = 1.dp,
+            )
+
+            Box {
+                SidebarIconLabel(
+                    icon = Icons.Outlined.MoreHoriz,
+                    label = "More",
+                    selected = false,
+                    onClick = { showMoreMenu = true },
+                )
+
+                DropdownMenu(
+                    expanded = showMoreMenu,
+                    onDismissRequest = { showMoreMenu = false },
+                ) {
+                    overflowItems.forEach { item ->
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = item.icon,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Text(
+                                        text = item.route.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            onPinRoute(item.route)
+                                            showMoreMenu = false
+                                        },
+                                        modifier = Modifier.size(24.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.PushPin,
+                                            contentDescription = "Pin to sidebar",
+                                            modifier = Modifier.size(14.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            },
+                            onClick = {
+                                onRouteSelected(item.route)
+                                showMoreMenu = false
+                            },
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SidebarItem(
+private fun PinnedSidebarItem(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    isDashboard: Boolean,
+    onClick: () -> Unit,
+    onUnpin: () -> Unit,
+) {
+    var showContextMenu by remember { mutableStateOf(false) }
+
+    Box {
+        SidebarIconLabel(
+            icon = icon,
+            label = label,
+            selected = selected,
+            onClick = onClick,
+            onRightClick = if (!isDashboard) {
+                { showContextMenu = true }
+            } else null,
+        )
+
+        if (!isDashboard) {
+            DropdownMenu(
+                expanded = showContextMenu,
+                onDismissRequest = { showContextMenu = false },
+            ) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            "Remove from sidebar",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    },
+                    onClick = {
+                        onUnpin()
+                        showContextMenu = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun SidebarIconLabel(
     icon: ImageVector,
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
+    onRightClick: (() -> Unit)? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
@@ -129,22 +220,30 @@ private fun SidebarItem(
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    Box(
-        modifier = Modifier
-            .padding(horizontal = 6.dp, vertical = 1.dp)
-            .size(44.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(backgroundColor)
-            .hoverable(interactionSource)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
+    var modifier = Modifier
+        .padding(horizontal = 4.dp, vertical = 1.dp)
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(8.dp))
+        .background(backgroundColor)
+        .hoverable(interactionSource)
+        .clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onClick,
+        )
+
+    if (onRightClick != null) {
+        modifier = modifier.onClick(
+            matcher = PointerMatcher.mouse(PointerButton.Secondary),
+            onClick = onRightClick,
+        )
+    }
+
+    Column(
+        modifier = modifier.padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Row {
-            // Left accent bar for selected item
             if (selected) {
                 Box(
                     modifier = Modifier
@@ -153,7 +252,7 @@ private fun SidebarItem(
                         .clip(RoundedCornerShape(2.dp))
                         .background(MaterialTheme.colorScheme.primary),
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(2.dp))
             }
             Icon(
                 imageVector = icon,
@@ -162,20 +261,14 @@ private fun SidebarItem(
                 tint = contentColor,
             )
         }
-    }
-}
-
-@Composable
-private fun GroupDivider() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.outlineVariant,
-            thickness = 1.dp,
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
         )
     }
 }

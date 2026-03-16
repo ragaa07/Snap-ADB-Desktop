@@ -21,9 +21,11 @@ import com.ragaa.snapadb.core.ui.DeviceInfo
 import com.ragaa.snapadb.core.ui.MainShell
 import com.ragaa.snapadb.core.ui.components.AdbSetupScreen
 import com.ragaa.snapadb.feature.appmanager.LabelResolutionService
+import com.ragaa.snapadb.core.sidebar.SidebarViewModel
 import com.ragaa.snapadb.feature.screenmirror.MirrorPanel
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun App(
@@ -118,6 +120,8 @@ fun App(
                     )
                 }
 
+                val sidebarViewModel: SidebarViewModel = koinViewModel()
+
                 MainShell(
                     router = router,
                     themeMode = themeMode,
@@ -130,6 +134,10 @@ fun App(
                         val adbDevice = allDevices.find { it.serial == deviceInfo.serial }
                         adbDevice?.let { deviceMonitor.selectDevice(it) }
                     },
+                    pinnedItems = sidebarViewModel.pinnedItems,
+                    overflowItems = sidebarViewModel.overflowItems,
+                    onPinRoute = sidebarViewModel::pinRoute,
+                    onUnpinRoute = sidebarViewModel::unpinRoute,
                     globalMessage = deviceDisconnectMessage,
                     onDismissGlobalMessage = { deviceDisconnectMessage = null },
                     mirrorPanelContent = { MirrorPanel() },

@@ -56,5 +56,6 @@ include(":feature:notification")
 include(":feature:appdata")
 include(":feature:bugreporter")
 include(":feature:dbinspector")
+include(":feature:network")
 
 include(":lib:mirror")

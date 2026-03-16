@@ -258,3 +258,63 @@ class SetLocale(private val locale: String) : AdbCommand<String> {
 
     override fun parse(result: ProcessResult): String = result.stdout.trim()
 }
+
+// === HTTP Proxy Commands ===
+
+private val PROXY_HOST_PATTERN = Regex("^[a-zA-Z0-9._-]+$")
+
+class GetHttpProxy : AdbCommand<String> {
+    override fun args(): List<String> = listOf("shell", "settings get global http_proxy")
+    override fun parse(result: ProcessResult): String {
+        val value = result.stdout.trim()
+        return if (value == "null" || value == ":0" || value.isBlank()) "" else value
+    }
+}
+
+class SetHttpProxy(private val host: String, private val port: Int) : AdbCommand<String> {
+    init {
+        require(host.isNotBlank()) { "Host must not be blank" }
+        require(host.length <= 253) { "Host too long" }
+        require(host.matches(PROXY_HOST_PATTERN)) { "Invalid host: $host" }
+        require(port in 1..65535) { "Invalid port: $port (must be 1-65535)" }
+    }
+
+    override fun args(): List<String> =
+        listOf("shell", "settings put global http_proxy '$host:$port'")
+
+    override fun parse(result: ProcessResult): String = result.stdout.trim()
+}
+
+class ClearHttpProxy : AdbCommand<String> {
+    override fun args(): List<String> = listOf("shell", "settings put global http_proxy :0")
+    override fun parse(result: ProcessResult): String = result.stdout.trim()
+}
+
+// === Certificate Installation Commands ===
+
+private val CERT_PATH_PATTERN = Regex("^[a-zA-Z0-9/_.-]+$")
+
+class ListUserCerts : AdbCommand<List<String>> {
+    override fun args(): List<String> = listOf("shell", "ls /data/misc/user/0/cacerts-added/ 2>/dev/null")
+    override fun parse(result: ProcessResult): List<String> {
+        return result.stdout.trim().lines().filter { it.isNotBlank() && it != "ls: /data/misc/user/0/cacerts-added/: No such file or directory" }
+    }
+}
+
+class InstallUserCert(private val localCertPath: String) : AdbCommand<String> {
+    init {
+        require(localCertPath.isNotBlank()) { "Certificate path must not be blank" }
+    }
+
+    override fun args(): List<String> =
+        listOf("shell", "am start -a android.credentials.INSTALL -t application/x-x509-ca-cert -d file:///sdcard/Download/.snapadb_cert_tmp")
+
+    override fun parse(result: ProcessResult): String = result.stdout.trim()
+}
+
+class OpenSecuritySettings : AdbCommand<String> {
+    override fun args(): List<String> =
+        listOf("shell", "am start -a android.settings.SECURITY_SETTINGS")
+
+    override fun parse(result: ProcessResult): String = result.stdout.trim()
+}

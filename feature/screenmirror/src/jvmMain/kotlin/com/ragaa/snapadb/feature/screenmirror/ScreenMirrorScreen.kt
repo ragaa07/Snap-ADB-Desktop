@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.CameraAlt
 import com.ragaa.snapadb.core.ui.components.ErrorState
 import com.ragaa.snapadb.core.ui.components.LoadingState
 import com.ragaa.snapadb.core.ui.components.NoDeviceState
+import com.ragaa.snapadb.core.ui.components.SectionCard
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.FiberManualRecord
 import androidx.compose.material.icons.outlined.Home
@@ -669,23 +670,6 @@ private fun CheckboxOption(label: String, checked: Boolean, onCheckedChange: (Bo
     }
 }
 
-@Composable
-private fun SectionCard(title: String, icon: ImageVector, content: @Composable () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainerLow, RoundedCornerShape(12.dp))
-            .padding(16.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(title, style = MaterialTheme.typography.titleMedium)
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        content()
-    }
-}
 
 private fun formatElapsed(seconds: Int): String {
     val mins = seconds / 60

@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,11 +26,16 @@ import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,9 +46,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerButton
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupPositionProvider
 import com.ragaa.snapadb.core.navigation.Route
 
 @Composable
@@ -60,7 +67,7 @@ fun Sidebar(
 
     Column(
         modifier = Modifier
-            .width(72.dp)
+            .width(48.dp)
             .fillMaxHeight()
             .background(MaterialTheme.colorScheme.surface)
             .padding(vertical = 4.dp),
@@ -88,13 +95,13 @@ fun Sidebar(
         // Divider + More button at bottom
         if (overflowItems.isNotEmpty()) {
             HorizontalDivider(
-                modifier = Modifier.padding(horizontal = 12.dp),
+                modifier = Modifier.padding(horizontal = 8.dp),
                 color = MaterialTheme.colorScheme.outlineVariant,
                 thickness = 1.dp,
             )
 
             Box {
-                SidebarIconLabel(
+                SidebarIcon(
                     icon = Icons.Outlined.MoreHoriz,
                     label = "More",
                     selected = false,
@@ -151,7 +158,6 @@ fun Sidebar(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PinnedSidebarItem(
     icon: ImageVector,
@@ -164,7 +170,7 @@ private fun PinnedSidebarItem(
     var showContextMenu by remember { mutableStateOf(false) }
 
     Box {
-        SidebarIconLabel(
+        SidebarIcon(
             icon = icon,
             label = label,
             selected = selected,
@@ -196,9 +202,9 @@ private fun PinnedSidebarItem(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-private fun SidebarIconLabel(
+private fun SidebarIcon(
     icon: ImageVector,
     label: String,
     selected: Boolean,
@@ -220,55 +226,70 @@ private fun SidebarIconLabel(
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    var modifier = Modifier
-        .padding(horizontal = 4.dp, vertical = 1.dp)
-        .fillMaxWidth()
-        .clip(RoundedCornerShape(8.dp))
-        .background(backgroundColor)
-        .hoverable(interactionSource)
-        .clickable(
-            interactionSource = interactionSource,
-            indication = null,
-            onClick = onClick,
-        )
-
-    if (onRightClick != null) {
-        modifier = modifier.onClick(
-            matcher = PointerMatcher.mouse(PointerButton.Secondary),
-            onClick = onRightClick,
-        )
-    }
-
-    Column(
-        modifier = modifier.padding(vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Row {
-            if (selected) {
-                Box(
-                    modifier = Modifier
-                        .width(3.dp)
-                        .height(20.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.primary),
-                )
-                Spacer(modifier = Modifier.width(2.dp))
-            }
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                modifier = Modifier.size(20.dp),
-                tint = contentColor,
+    val tooltipPosition = remember {
+        object : PopupPositionProvider {
+            override fun calculatePosition(
+                anchorBounds: IntRect,
+                windowSize: IntSize,
+                layoutDirection: LayoutDirection,
+                popupContentSize: IntSize,
+            ): IntOffset = IntOffset(
+                x = anchorBounds.right + 4,
+                y = anchorBounds.top + (anchorBounds.height - popupContentSize.height) / 2,
             )
         }
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = contentColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-        )
+    }
+
+    TooltipBox(
+        positionProvider = tooltipPosition,
+        tooltip = {
+            PlainTooltip {
+                Text(label)
+            }
+        },
+        state = rememberTooltipState(),
+    ) {
+        var modifier = Modifier
+            .padding(horizontal = 4.dp, vertical = 1.dp)
+            .size(40.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(backgroundColor)
+            .hoverable(interactionSource)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            )
+
+        if (onRightClick != null) {
+            modifier = modifier.onClick(
+                matcher = PointerMatcher.mouse(PointerButton.Secondary),
+                onClick = onRightClick,
+            )
+        }
+
+        Box(
+            modifier = modifier,
+            contentAlignment = Alignment.Center,
+        ) {
+            Row {
+                if (selected) {
+                    Box(
+                        modifier = Modifier
+                            .width(3.dp)
+                            .height(20.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.primary),
+                    )
+                    Spacer(modifier = Modifier.width(2.dp))
+                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    modifier = Modifier.size(20.dp),
+                    tint = contentColor,
+                )
+            }
+        }
     }
 }

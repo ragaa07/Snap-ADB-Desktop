@@ -58,5 +58,6 @@ include(":feature:bugreporter")
 include(":feature:dbinspector")
 include(":feature:network")
 include(":feature:monkey")
+include(":feature:devoptions")
 
 include(":lib:mirror")

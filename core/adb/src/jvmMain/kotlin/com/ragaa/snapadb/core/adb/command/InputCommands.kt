@@ -259,6 +259,98 @@ class SetLocale(private val locale: String) : AdbCommand<String> {
     override fun parse(result: ProcessResult): String = result.stdout.trim()
 }
 
+// === Individual Animation Scale Commands ===
+
+class GetIndividualAnimationScale(private val type: String) : AdbCommand<String> {
+    companion object {
+        const val WINDOW = "window_animation_scale"
+        const val TRANSITION = "transition_animation_scale"
+        const val ANIMATOR = "animator_duration_scale"
+    }
+
+    init {
+        require(type in listOf(WINDOW, TRANSITION, ANIMATOR)) { "Invalid animation scale type: $type" }
+    }
+
+    override fun args(): List<String> = listOf("shell", "settings get global $type")
+    override fun parse(result: ProcessResult): String {
+        val value = result.stdout.trim()
+        return if (value == "null" || value.isBlank()) "1.0" else value
+    }
+}
+
+class SetIndividualAnimationScale(private val type: String, private val scale: String) : AdbCommand<String> {
+    init {
+        require(type in listOf(
+            GetIndividualAnimationScale.WINDOW,
+            GetIndividualAnimationScale.TRANSITION,
+            GetIndividualAnimationScale.ANIMATOR,
+        )) { "Invalid animation scale type: $type" }
+        require(scale.matches(ANIMATION_SCALE_PATTERN)) { "Invalid animation scale: $scale" }
+    }
+
+    override fun args(): List<String> = listOf("shell", "settings put global $type $scale")
+    override fun parse(result: ProcessResult): String = result.stdout.trim()
+}
+
+// === Background Process Limit Commands ===
+
+class GetBackgroundProcessLimit : AdbCommand<Int> {
+    override fun args(): List<String> = listOf("shell", "settings get global background_process_limit")
+    override fun parse(result: ProcessResult): Int {
+        val value = result.stdout.trim()
+        return when {
+            value == "null" || value.isBlank() -> -1
+            else -> value.toIntOrNull() ?: -1
+        }
+    }
+}
+
+class SetBackgroundProcessLimit(private val limit: Int) : AdbCommand<String> {
+    init {
+        require(limit in -1..4) { "Invalid background process limit: $limit (must be -1 to 4)" }
+    }
+
+    override fun args(): List<String> {
+        return if (limit == -1) {
+            listOf("shell", "settings delete global background_process_limit")
+        } else {
+            listOf("shell", "settings put global background_process_limit $limit")
+        }
+    }
+
+    override fun parse(result: ProcessResult): String = result.stdout.trim()
+}
+
+// === Debug Property Commands ===
+
+private val DEBUG_PROP_PATTERN = Regex("^[a-zA-Z0-9._]+$")
+private val DEBUG_PROP_VALUE_PATTERN = Regex("^[a-zA-Z0-9._-]+$")
+
+class SetDebugProp(private val prop: String, private val value: String) : AdbCommand<String> {
+    init {
+        require(prop.matches(DEBUG_PROP_PATTERN)) { "Invalid property name: $prop" }
+        require(value.length <= 92) { "Property value too long" }
+        require(value.matches(DEBUG_PROP_VALUE_PATTERN)) { "Invalid property value: $value" }
+    }
+
+    override fun args(): List<String> {
+        val escapedValue = value.replace("'", "'\\''")
+        return listOf("shell", "setprop $prop '$escapedValue'")
+    }
+
+    override fun parse(result: ProcessResult): String = result.stdout.trim()
+}
+
+class GetDebugProp(private val prop: String) : AdbCommand<String> {
+    init {
+        require(prop.matches(DEBUG_PROP_PATTERN)) { "Invalid property name: $prop" }
+    }
+
+    override fun args(): List<String> = listOf("shell", "getprop $prop")
+    override fun parse(result: ProcessResult): String = result.stdout.trim()
+}
+
 // === HTTP Proxy Commands ===
 
 private val PROXY_HOST_PATTERN = Regex("^[a-zA-Z0-9._-]+$")

@@ -36,6 +36,7 @@ kotlin {
             implementation(projects.feature.dbinspector)
             implementation(projects.feature.network)
             implementation(projects.feature.monkey)
+            implementation(projects.feature.devoptions)
 
             implementation(compose.runtime)
             implementation(compose.foundation)

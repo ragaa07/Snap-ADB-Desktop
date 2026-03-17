@@ -17,4 +17,5 @@ sealed class Route(val title: String) {
     data object DbInspector : Route("DB Inspector")
     data object Network : Route("Network")
     data object Monkey : Route("Monkey")
+    data object DevOptions : Route("Dev Options")
 }

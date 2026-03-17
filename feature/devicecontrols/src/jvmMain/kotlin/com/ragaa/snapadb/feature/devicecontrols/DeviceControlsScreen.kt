@@ -26,6 +26,7 @@ import com.ragaa.snapadb.core.ui.components.ErrorState
 import com.ragaa.snapadb.core.ui.components.LoadingState
 import com.ragaa.snapadb.core.ui.components.NoDeviceState
 import com.ragaa.snapadb.core.ui.components.SectionCard
+import com.ragaa.snapadb.core.ui.components.normalizeScale
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.NetworkWifi
@@ -483,10 +484,6 @@ private fun DeveloperOptionsSection(
     }
 }
 
-private fun normalizeScale(value: String): String {
-    val f = value.toFloatOrNull() ?: return value
-    return if (f == f.toLong().toFloat()) f.toLong().toString() else f.toString()
-}
 
 @Composable
 private fun NetworkSection(onIntent: (DeviceControlsIntent) -> Unit) {

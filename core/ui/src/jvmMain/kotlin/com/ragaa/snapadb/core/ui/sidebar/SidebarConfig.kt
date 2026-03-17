@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.SettingsRemote
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.Pets
 import androidx.compose.material.icons.outlined.Summarize
 import androidx.compose.material.icons.outlined.TableChart
 import androidx.compose.material.icons.outlined.Terminal
@@ -37,6 +38,7 @@ val allNavItems: List<NavItem> = listOf(
     NavItem(Route.DeepLink, Icons.Outlined.Link),
     NavItem(Route.Notification, Icons.Outlined.Notifications),
     NavItem(Route.BugReporter, Icons.Outlined.Summarize),
+    NavItem(Route.Monkey, Icons.Outlined.Pets),
 )
 
 val defaultPinnedRoutes: Set<String> = setOf(

@@ -16,6 +16,7 @@ import com.ragaa.snapadb.feature.screenmirror.di.screenMirrorModule
 import com.ragaa.snapadb.feature.appdata.di.appDataModule
 import com.ragaa.snapadb.feature.bugreporter.di.bugReporterModule
 import com.ragaa.snapadb.feature.dbinspector.di.dbInspectorModule
+import com.ragaa.snapadb.feature.monkey.di.monkeyModule
 import com.ragaa.snapadb.feature.network.di.networkModule
 import com.ragaa.snapadb.core.sidebar.sidebarModule
 import com.ragaa.snapadb.feature.performance.di.performanceModule
@@ -41,4 +42,5 @@ val appModules = listOf(
     bugReporterModule,
     dbInspectorModule,
     networkModule,
+    monkeyModule,
 )

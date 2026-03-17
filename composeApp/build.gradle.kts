@@ -35,6 +35,7 @@ kotlin {
             implementation(projects.feature.bugreporter)
             implementation(projects.feature.dbinspector)
             implementation(projects.feature.network)
+            implementation(projects.feature.monkey)
 
             implementation(compose.runtime)
             implementation(compose.foundation)
